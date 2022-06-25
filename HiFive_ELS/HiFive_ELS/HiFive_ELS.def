@@ -1,0 +1,6 @@
+LIBRARY "HiFive_ELS"
+EXPORTS
+	CDateToExcelDate			@1
+	ExcelDateToCDate          @2
+	Excel_HiFive_ELS_MC     @3
+	Excel_HiFive_VaR		@4

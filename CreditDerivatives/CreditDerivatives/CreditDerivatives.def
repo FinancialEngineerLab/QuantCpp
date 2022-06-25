@@ -1,0 +1,9 @@
+LIBRARY	
+EXPORTS
+
+	Calc_CDS_Spread				@001
+	Calc_Hazard_Rate_From_CDSCurve @002
+	Calc_RiskyCouponBond @003
+	Calc_OLD_CDS_Value   @004
+	CDateToExcelDate						@010
+	ExcelDateToCDate						@011

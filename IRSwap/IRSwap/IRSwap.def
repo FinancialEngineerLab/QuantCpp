@@ -1,0 +1,4 @@
+LIBRARY
+
+EXPORTS
+	IRSwap_Excel         @001

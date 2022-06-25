@@ -1,0 +1,4 @@
+LIBRARY "CreditRiskCapitalIRB"
+
+EXPORTS
+	Calc_CreditRiskCapital @001
