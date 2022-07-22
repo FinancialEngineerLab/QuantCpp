@@ -6,6 +6,8 @@
 #include "Util.h"
 #endif
 
+#include "Structure.h"
+
 double SABRIV(double alpha, double beta, double v, double rho, double Fut, double K, double T)
 {
 	long i;
@@ -363,7 +365,7 @@ int main()
 							0.1032700, 	0.1141300, 	0.1281000, 	0.1334600, 	0.1378600, 	0.1417300, 	0.1468200, 	0.1510900, 	0.1538600, 	0.1567300,
 							0.1098400, 	0.1083000, 	0.1213600, 	0.1260800, 	0.1312800, 	0.1370000, 	0.1428800, 	0.1480200, 	0.1520600, 	0.1551400,
 							0.1148200, 	0.1139000, 	0.1179300, 	0.1247500, 	0.1310300, 	0.1354900, 	0.1418000, 	0.1477500, 	0.1526000, 	0.1559700};
-	double ResultLocVol[NVol] = { 0.0 };
+	double ResultImpliedVolReshaped[NVol] = { 0.0 };
 
 	double alpha, v, rho, Fut, Beta;
 	double ResultParams[3] = { 0., };
@@ -372,8 +374,8 @@ int main()
 	for (i = 0; i < NTermVol; i++) TermParams[i] = (double*)malloc(sizeof(double) * 4);
 
 	double* VolArray = (double*)malloc(sizeof(double) *NParityVol);
-	double** ResultLocalVol = (double**)malloc(sizeof(double*) * NParityVol);
-	for (i = 0; i < NParityVol; i++) ResultLocalVol[i] = (double*)malloc(sizeof(double) * NTermVol);
+	double** ResultImVol = (double**)malloc(sizeof(double*) * NParityVol);
+	for (i = 0; i < NParityVol; i++) ResultImVol[i] = (double*)malloc(sizeof(double) * NTermVol);
 	double* TempVolResult = (double*)malloc(sizeof(double) * NParityVol);
 
 	for (i = 0; i < NTermVol; i++) TermParams[i][3] = TermVol[i];
@@ -397,20 +399,46 @@ int main()
 		}
 		main2(1, TermVol + i, NParityVol, ParityVol, VolArray, Fut, Beta, TermParams[i], TempVolResult);
 
-		for (j = 0; j < NParityVol; j++) ResultLocalVol[j][i] = TempVolResult[j];
+		for (j = 0; j < NParityVol; j++) ResultImVol[j][i] = TempVolResult[j];
 		
 	}
 
 	printf("\nSABR Implied Volatility\n");
-	Print_Array(ResultLocalVol, NParityVol, NTermVol);
+	Print_Array(ResultImVol, NParityVol, NTermVol);
 	printf("\n\n Alpha,      Vega,      Rho  ,  Term \n");
 	Print_Array(TermParams, NTermVol, 4);
 
+	k = 0;
+	for (i = 0; i < NParityVol; i++)
+	{
+		for (j = 0; j < NTermVol; j++)
+		{
+			ResultImpliedVolReshaped[k] = ResultImVol[i][j];
+			k += 1;
+		}
+	}
+
+	long N_Rf = 2;
+	double RfTerm[2] = { 1.0, 2.0 };
+	double RfRate[2] = { 0.02, 0.02 };
+
+	long N_Div = 2;
+	double DivTerm[2] = { 1.0, 2.0 };
+	double DivRate[2] = { 0.02, 0.02 };
+
+	curveinfo RfCurve(N_Rf, RfTerm, RfRate);
+	curveinfo DivCurve(N_Div, DivTerm, DivRate);
+
+	volinfo VolMatrix(NParityVol, ParityVol, NTermVol, TermVol, ResultImpliedVolReshaped);
+	
+	VolMatrix.set_localvol(&RfCurve, &DivCurve);
+	printf("\n\nSABR Local Volatility\n\n");
+	Print_Array(VolMatrix.LocalVolMat, NParityVol, NTermVol);
 
 	for (i = 0; i < NTermVol; i++) free(TermParams[i]);
 	free(TermParams);
 	free(VolArray);
-	for (i = 0; i < NParityVol; i++) free(ResultLocalVol[i]);
-	free(ResultLocalVol);
+	for (i = 0; i < NParityVol; i++) free(ResultImVol[i]);
+	free(ResultImVol);
 	free(TempVolResult);
 }

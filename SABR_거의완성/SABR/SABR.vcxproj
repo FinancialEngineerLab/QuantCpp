@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Structure.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>
