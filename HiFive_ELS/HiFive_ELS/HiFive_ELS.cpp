@@ -255,7 +255,7 @@ public:
 		daily_flag = 0;
 	}
 
-	simulinfo(long SimulateFlag, long Number_Simul, long Number_Stock, long CalcGreekFlag, long CalculationDate, double* S0_Value, double** CorrelationMat, long MaxSimulDays)
+	simulinfo(long SimulateFlag, long Number_Simul, long Number_Stock, long CalcGreekFlag, long CalculationDate, double* S0_Value, double** CorrelationMat, long MaxSimulDays, double*** FixedRn)
 	{
 		long i, j, k;
 
@@ -273,28 +273,7 @@ public:
 		{
 			dynamicflag = 1;
 			pathprice = (double*)calloc(max(Number_Simul, 1), sizeof(double));
-
-			randseed = 0;
-
-			randnorm(randseed);
-
-			if (greekflag != 0)
-			{
-				FixedRandn = (double***)malloc(sizeof(double**) * nsimul);
-				for (i = 0; i < nsimul; i++)
-				{
-					FixedRandn[i] = (double**)malloc(sizeof(double*) * maxsimulnode);
-					for (j = 0; j < maxsimulnode; j++)
-					{
-						FixedRandn[i][j] = (double*)malloc(sizeof(double) * nstock);
-
-						for (k = 0; k < nstock; k++)
-						{
-							FixedRandn[i][j][k] = randnorm();
-						}
-					}
-				}
-			}
+			if (greekflag != 0) FixedRandn = FixedRn;
 		}
 		else
 		{
@@ -320,21 +299,7 @@ public:
 		if (dynamicflag == 1)
 		{
 			long i, j;
-
 			free(pathprice);
-
-			if (greekflag != 0)
-			{
-				for (i = 0; i < nsimul; i++)
-				{
-					for (j = 0; j < maxsimulnode; j++)
-					{
-						free(FixedRandn[i][j]);
-					}
-					free(FixedRandn[i]);
-				}
-				free(FixedRandn);
-			}
 		}
 
 		if (daily_flag != 0)
@@ -1162,7 +1127,7 @@ long Preprocessing_HiFive_MC_Excel(
 	double* VolQuanto,				// 51: 기초자산 별 FX Vol
 	long* ImVolLocalVolFlag,		// 52: Implied Vol을 사용할 지 Local Vol을 사용할 지 Flag
 	long* NParityVol,				// 53: 기초자산 별 Vol Parity 개수
-	double* ParityVol,				// 54: 기초자산 별 Parity
+	double* ParityVol_Adj,			// 54: 기초자산 별 Parity 상대가격 보정 후
 	long* NTermVol,					// 55: 기초자산 별 Vol Term 개수
 
 	double* TermVol,				// 56: 기초자산 별 Vol Term
@@ -1171,7 +1136,9 @@ long Preprocessing_HiFive_MC_Excel(
 	double* AutocallProb,			// 59: OutPut 조기상환 확률 담을 Array
 	double* CPNProb,				// 60: OutPut 쿠폰확률 담을 Array (미완성)
 
-	double* ResultLocalVol			// 61: OutPut Dupire Local Volatility
+	double* ResultLocalVol,			// 61: OutPut Dupire Local Volatility
+	double* ParityVol_Org,			// 62: 기초자산 별 Parity 원래기준
+	double*** FixedRandn
 )
 {
 	long i, j, k, n;
@@ -1540,7 +1507,7 @@ long Preprocessing_HiFive_MC_Excel(
 		ResultPrice[0] = Payoff * DiscFactor;
 	}
 
-	simulinfo Info_Simul(Simulation_Required, NSimul, NStock, GreekFlag, PricingDate_Ctype, S0_Value, CorrelationMatrix, MaxSimulDays);
+	simulinfo Info_Simul(Simulation_Required, NSimul, NStock, GreekFlag, PricingDate_Ctype, S0_Value, CorrelationMatrix, MaxSimulDays, FixedRandn);
 
 	//////////////////////////
 	// 이미 지급된 쿠폰이 있다면 현가를 미리 넣어주고 시뮬레이션 시작
@@ -1642,30 +1609,25 @@ long Preprocessing_HiFive_MC_Excel(
 	//////////////////////////
 
 	volinfo* VolMatrixList = new volinfo[NStock];
-	volinfo* VolMatrixListUp = new volinfo[NStock];
-	volinfo* VolMatrixListDn = new volinfo[NStock];
+	double* Parity_AfterAdj;
 	nterm_vol = 0;
 	nparity = 0;
 	nvol = 0;
 	n = 0;
 	for (i = 0; i < NStock; i++)
 	{
-		(VolMatrixList + i)->hardcopy(NParityVol[i], ParityVol + nparity, NTermVol[i], TermVol + nterm_vol, Vol + nvol);
-		if (GreekFlag > 0)
-		{
-			(VolMatrixListUp + i)->hardcopyUp(NParityVol[i], ParityVol + nparity, NTermVol[i], TermVol + nterm_vol, Vol + nvol, 0.01);
-			(VolMatrixListDn + i)->hardcopyUp(NParityVol[i], ParityVol + nparity, NTermVol[i], TermVol + nterm_vol, Vol + nvol, -0.01);
-		}
+		Parity_AfterAdj = ParityVol_Adj + nparity;
+		(VolMatrixList + i)->hardcopy(NParityVol[i], ParityVol_Org + nparity, NTermVol[i], TermVol + nterm_vol, Vol + nvol);
 		nparity += NParityVol[i];
 		nterm_vol += NTermVol[i];
 		nvol += NParityVol[i] * NTermVol[i];
 		if (ImVolLocalVolFlag[i] == 0)
 		{
 			(VolMatrixList + i)->set_localvol((rf_curves + i), (div_curves + i), 2.0, 0.001);
-			if (GreekFlag > 0)
+			for (j = 0; j < NParityVol[i]; j++)
 			{
-				(VolMatrixListUp + i)->set_localvol((rf_curves + i), (div_curves + i), 2.0, 0.001);
-				(VolMatrixListDn + i)->set_localvol((rf_curves + i), (div_curves + i), 2.0, 0.001);
+				(VolMatrixList + i)->Parity[j] = Parity_AfterAdj[j];
+				(VolMatrixList + i)->Parity_Locvol[j] = Parity_AfterAdj[j];
 			}
 		}
 		else
@@ -1673,17 +1635,6 @@ long Preprocessing_HiFive_MC_Excel(
 			(VolMatrixList + i)->LocalVolMat = (VolMatrixList + i)->Vol_Matrix;
 			(VolMatrixList + i)->Parity_Locvol = (VolMatrixList + i)->Parity;
 			(VolMatrixList + i)->Term_Locvol = (VolMatrixList + i)->Term;
-			if (GreekFlag > 0)
-			{
-				(VolMatrixListUp + i)->LocalVolMat = (VolMatrixListUp + i)->Vol_Matrix;
-				(VolMatrixListUp + i)->Parity_Locvol = (VolMatrixListUp + i)->Parity;
-				(VolMatrixListUp + i)->Term_Locvol = (VolMatrixListUp + i)->Term;
-
-				(VolMatrixListDn + i)->LocalVolMat = (VolMatrixListDn + i)->Vol_Matrix;
-				(VolMatrixListDn + i)->Parity_Locvol = (VolMatrixListDn + i)->Parity;
-				(VolMatrixListDn + i)->Term_Locvol = (VolMatrixListDn + i)->Term;
-
-			}
 		}
 
 		// LocalVol Result 저장
@@ -1695,25 +1646,9 @@ long Preprocessing_HiFive_MC_Excel(
 				n++;
 			}
 		}
-
-
-		// 패러티 보정 St/S0 가 1이 아닌 경우
-		if (S[i] / X[i] != 1.0)
-		{
-			for (j = 0; j < NParityVol[i]; j++)
-			{
-				(VolMatrixList + i)->Parity_Locvol[j] = (VolMatrixList + i)->Parity_Locvol[j] * S[i] / X[i];
-				if (GreekFlag > 0)
-				{
-					(VolMatrixListUp + i)->Parity_Locvol[j] = (VolMatrixListUp + i)->Parity_Locvol[j] * S[i] / X[i];
-					(VolMatrixListDn + i)->Parity_Locvol[j] = (VolMatrixListDn + i)->Parity_Locvol[j] * S[i] / X[i];
-				}
-			}
-		}
 	}
 
 	double* CF = (double*)calloc((NEvaluate + 2 + NLizard), sizeof(double));
-
 
 	long pricingonly = 1;
 
@@ -1724,71 +1659,9 @@ long Preprocessing_HiFive_MC_Excel(
 	}
 	else
 	{
-		price = Pricing_HiFive_MC(Info_Simul, info_hifive, disc_curve, rf_curves, div_curves,
-			quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb + Evaluation_Idx, CF + Evaluation_Idx, CPNProb);
+		price = Pricing_HiFive_MC(Info_Simul, info_hifive, disc_curve, rf_curves, div_curves, quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb + Evaluation_Idx, CF + Evaluation_Idx, CPNProb);
 
-		for (i = 0; i < NEvaluate + 2 + NLizard; i++)
-		{
-			AutocallProb[NEvaluate + 2 + NLizard + i] = CF[i];
-		}
-
-
-
-		if (GreekFlag > 0)
-		{
-			double P;
-			double P_up;
-			double P_dn;
-			double dS;
-			double Delta, Gamma;
-			double* S0_Value_Up = (double*)malloc(sizeof(double) * NStock);
-			double* S0_Value_Dn = (double*)malloc(sizeof(double) * NStock);
-
-			pricingonly = 0;
-			// Path 고정하고 SImulation
-			Info_Simul.reset_pathprice();
-			P = Pricing_HiFive_MC(Info_Simul, info_hifive, disc_curve, rf_curves, div_curves,
-				quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb, CF, CPNProb);
-
-			for (n = 0; n < Info_Simul.nstock; n++)
-			{
-				for (i = 0; i < NStock; i++)
-				{
-					if (i == n)
-					{
-						S0_Value_Up[i] = S0_Value[i] * 1.01;
-						S0_Value_Dn[i] = S0_Value[i] * 0.99;
-					}
-					else
-					{
-						S0_Value_Up[i] = S0_Value[i];
-						S0_Value_Dn[i] = S0_Value[i];
-					}
-				}
-
-				dS = S0_Value[n] * 0.01;
-
-				Info_Simul.s0 = S0_Value_Up;
-				Info_Simul.reset_pathprice();
-				P_up = Pricing_HiFive_MC(Info_Simul, info_hifive, disc_curve, rf_curves, div_curves,
-					quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb, CF, CPNProb);
-
-				Info_Simul.s0 = S0_Value_Dn;
-				Info_Simul.reset_pathprice();
-				P_dn = Pricing_HiFive_MC(Info_Simul, info_hifive, disc_curve, rf_curves, div_curves,
-					quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb, CF, CPNProb);
-
-				Delta = (P_up - P_dn) / (2.0 * dS) / FaceValue;
-				Gamma = (P_up + P_dn - 2.0 * P) / (dS * dS * FaceValue * FaceValue);
-
-				ResultPrice[n + 1] = Delta;
-				ResultPrice[NStock + n + 1] = Gamma;
-
-			}
-
-			free(S0_Value_Up);
-			free(S0_Value_Dn);
-		}
+		for (i = 0; i < NEvaluate + 2 + NLizard; i++) AutocallProb[NEvaluate + 2 + NLizard + i] = CF[i];
 	}
 
 	free(S0_Value);
@@ -1801,8 +1674,6 @@ long Preprocessing_HiFive_MC_Excel(
 	delete[] div_curves;
 	delete[] quanto_curves;
 	delete[] VolMatrixList;
-	delete[] VolMatrixListUp;
-	delete[] VolMatrixListDn;
 
 	free(Days_Autocall_Eval);
 	free(Days_Autocall_Pay);
@@ -1974,6 +1845,38 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 		CPN_PayDate_Ctype[i] = ExcelDateToCDate(CPN_PayDate_Excel[i]);
 	}
 
+	k = 0;
+	for (i = 0; i < NStock; i++) k += NParityVol[i];
+	double* ParityVol_Adj = (double*)malloc(sizeof(double) * k);
+
+	k = 0;
+	for (i = 0; i < NStock; i++)
+	{
+		for (j = 0; j < NParityVol[i]; j++)
+		{
+			ParityVol_Adj[k + j] = ParityVol[k + j] * S[i] / X[i];
+		}
+		k += NParityVol[i];
+	}
+
+	long MaxSimulDays = DayCountAtoB(PricingDate_Ctype, PayDate_Ctype[NEvaluate - 1]) + 1;
+	double*** FixedRandn = (double***)malloc(sizeof(double**) * NSimul);
+	if (GreekFlag != 0)
+	{
+		randnorm(0);
+		for (i = 0; i < NSimul; i++)
+		{
+			FixedRandn[i] = (double**)malloc(sizeof(double*) * MaxSimulDays);
+			for (j = 0; j < MaxSimulDays; j++)
+			{
+				FixedRandn[i][j] = (double*)malloc(sizeof(double) * NStock);
+				for (k = 0; k < NStock; k++)
+				{
+					FixedRandn[i][j][k] = randnorm();
+				}
+			}
+		}
+	}
 	/////////////
 	// 전처리 함수로 넘어가기
 	/////////////
@@ -1988,27 +1891,90 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 												CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
 												Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 												Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
-												VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol,
+												VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
 												TermVol, Vol, ResultPrice, AutocallProb, CPNProb,
-												ResultLocalVol);
+												ResultLocalVol, ParityVol, FixedRandn);
+
+	long* nvolsum = (long*)malloc(sizeof(long) * (NStock + 1));
+	nvolsum[0] = 0;
+	for (i = 1; i < NStock + 1; i++)
+	{
+		nvolsum[i] = nvolsum[i - 1] + NParityVol[i - 1] * NTermVol[i - 1];
+	}
+	double* ResultPriceTemp = (double*)malloc(sizeof(double) * (1 + NStock * 3));
+	double* AutocallProbTemp = (double*)malloc(sizeof(double) * 2 * (NEvaluate + 2 + NLizard));
+	double* CPNProbTemp = (double*)malloc(sizeof(double) * max(1, NCPN * 2));
+	double* ResultLocalVolTemp = (double*)malloc(sizeof(double) * nvolsum[NStock]);
+
+	if (GreekFlag > 0)
+	{
+		double* Su = (double*)malloc(sizeof(double) * NStock);
+		double* Sd = (double*)malloc(sizeof(double) * NStock);
+		double Del, Gam, Pu, Pd;
+		for (i = 0; i < NStock; i++)
+		{
+			for (j = 0; j < NStock; j++)
+			{
+				if (j == i)
+				{
+					Su[j] = S[j] * 1.01;
+					Sd[j] = S[j] * 0.99;
+				}
+				else
+				{
+					Su[j] = S[j];
+					Sd[j] = S[j];
+				}
+			}
+			ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+				MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+				KI_Method, EvalDate_Ctype, PayDate_Ctype, NStrike, Strike,
+				AutocallSlope, AutocallCPN, NLizard, LizardFlag, LizardStartDate_Ctype,
+				LizardEndDate_Ctype, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+				CPN_EvaluateDate_Ctype, CPN_PayDate_Ctype, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+				NStock, Su, X, Base_S, Base_S_CPN,
+				CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
+				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
+				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
+				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
+				TermVol, Vol, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
+				ResultLocalVolTemp, ParityVol, FixedRandn);
+			Pu = ResultPriceTemp[0];
+
+			ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+				MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+				KI_Method, EvalDate_Ctype, PayDate_Ctype, NStrike, Strike,
+				AutocallSlope, AutocallCPN, NLizard, LizardFlag, LizardStartDate_Ctype,
+				LizardEndDate_Ctype, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+				CPN_EvaluateDate_Ctype, CPN_PayDate_Ctype, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+				NStock, Sd, X, Base_S, Base_S_CPN,
+				CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
+				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
+				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
+				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
+				TermVol, Vol, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
+				ResultLocalVolTemp, ParityVol, FixedRandn);
+			Pd = ResultPriceTemp[0];
+
+			Del = (Pu - Pd) / (2.0 * 0.01 * S[i]);
+			Gam = (Pu + Pd - 2.0 * ResultPrice[0]) / (S[i] * 0.01 * S[i] * 0.01);
+			ResultPrice[i + 1] = Del;
+			ResultPrice[NStock + i + 1] =Gam;
+
+		}
+
+		free(Su);
+		free(Sd);
+
+	}
 
 	if (GreekFlag > 1)
 	{
-		GreekFlag = 0;
-		long* nvolsum = (long*)malloc(sizeof(long) * (NStock+1));
 		double pu, pd;
 		double Vega;
-		nvolsum[0] = 0;
-		for (i = 1; i < NStock+1; i++)
-		{
-			nvolsum[i] = nvolsum[i-1] + NParityVol[i - 1] * NTermVol[i - 1];
-		}
+
 		double* voltempup = (double*)malloc(sizeof(double) * nvolsum[NStock]);
 		double* voltempdn = (double*)malloc(sizeof(double) * nvolsum[NStock]);
-		double* ResultPriceTemp = (double*)malloc(sizeof(double) * (1 + NStock * 3));
-		double* AutocallProbTemp = (double*)malloc(sizeof(double) * 2 * (NEvaluate + 2 + NLizard));
-		double* CPNProbTemp = (double*)malloc(sizeof(double) * max(1,NCPN * 2));
-		double* ResultLocalVolTemp = (double*)malloc(sizeof(double) * nvolsum[NStock]);
 
 		for (i = 0; i < NStock; i++)
 		{
@@ -2040,9 +2006,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
-				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol,
+				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
 				TermVol, voltempup, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp);
+				ResultLocalVolTemp, ParityVol, FixedRandn);
 			pu = ResultPriceTemp[0];
 
 			ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
@@ -2055,22 +2021,23 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
-				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol,
+				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
 				TermVol, voltempdn, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp);
+				ResultLocalVolTemp, ParityVol, FixedRandn);
 			pd = ResultPriceTemp[0];
 			Vega = (pu - pd) / 2.0 / 100.0;
 			ResultPrice[2 * NStock + i + 1] = Vega;
 		}
 
-		free(nvolsum);
 		free(voltempup);
 		free(voltempdn);
-		free(ResultPriceTemp);
-		free(AutocallProbTemp);
-		free(CPNProbTemp);
-		free(ResultLocalVolTemp);
 	}
+
+	free(nvolsum);
+	free(ResultPriceTemp);
+	free(AutocallProbTemp);
+	free(CPNProbTemp);
+	free(ResultLocalVolTemp);
 
 	free(Strike);
 	free(AutocallSlope);
@@ -2081,7 +2048,21 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	free(LizardEndDate_Ctype);
 	free(CPN_EvaluateDate_Ctype);
 	free(CPN_PayDate_Ctype);
-	//_CrtDumpMemoryLeaks();
+	
+	if (GreekFlag != 0)
+	{
+		for (i = 0; i < NSimul; i++)
+		{
+			for (j = 0; j < MaxSimulDays; j++)
+			{
+				free(FixedRandn[i][j]);
+			}
+			free(FixedRandn[i]);
+		}
+	}
+	free(FixedRandn);
+	free(ParityVol_Adj);
+	_CrtDumpMemoryLeaks();
 
 	return ResultCode;
 }
@@ -2983,7 +2964,24 @@ long HiFive_VaR_Excel(
 	double TTM = 0.0;
 	double DiscFactor = 1.0;
 	double Payoff = 0.0;
-	simulinfo Info_Simul(1, NSimul, NStock, 1, PricingDate_Ctype, S0_ForSimul[0], CorrelationMatrix, MaxSimulDays);
+
+
+	double*** FixedRandn = (double***)malloc(sizeof(double**) * NSimul);
+
+	randnorm(0);
+	for (i = 0; i < NSimul; i++)
+	{
+		FixedRandn[i] = (double**)malloc(sizeof(double*) * MaxSimulDays);
+		for (j = 0; j < MaxSimulDays; j++)
+		{
+			FixedRandn[i][j] = (double*)malloc(sizeof(double) * NStock);
+			for (k = 0; k < NStock; k++)
+			{
+				FixedRandn[i][j][k] = randnorm();
+			}
+		}
+	}
+	simulinfo Info_Simul(1, NSimul, NStock, 1, PricingDate_Ctype, S0_ForSimul[0], CorrelationMatrix, MaxSimulDays, FixedRandn);
 
 	for (idx_hist = 0; idx_hist < NHistory; idx_hist++)
 	{
@@ -3421,6 +3419,17 @@ long HiFive_VaR_Excel(
 	free(ReturnData);
 	free(Quantile);
 	
+	for (i = 0; i < NSimul; i++)
+	{
+		for (j = 0; j < MaxSimulDays; j++)
+		{
+			free(FixedRandn[i][j]);
+		}
+		free(FixedRandn[i]);
+	}
+	free(FixedRandn);
+
+
 	return 1;
 }
 
