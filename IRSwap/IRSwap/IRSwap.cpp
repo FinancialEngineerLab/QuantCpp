@@ -2258,12 +2258,7 @@ long ErrorCheckIRSwap_Excel(
 	double* RcvRef_Term,			// Rcv Leg 레퍼런스 금리 Term Array
 	double* RcvRef_Rate,			// Rcv Leg 레퍼런스 금리 Rate Array
 	long NRcvCF,					// Rcv Leg CashFlow 개수
-	long* Rcv_ForwardStartExl,		// Rcv Leg Forward Start Date Excel Type Array
-
-	long* Rcv_ForwardEndExl,		// Rcv Leg Forward End Date Excel Type Array
-	long* Rcv_StartDateExl,			// Rcv Leg 기산일 Excel Type Array
-	long* Rcv_EndDateExl,			// Rcv Leg 기말일 Excel Type Array
-	long* Rcv_PayDateExl,			// Rcv Leg 지급일 Excel Type Array
+	long* RcvCashFlowSchedule,		// Rcv Forward Start, End, 기산, 기말, 지급일
 	double* Rcv_Slope,				// Rcv Leg 변동금리 기울기 Array
 
 	double* Rcv_CPN,				// Rcv Leg 고정쿠폰 Array
@@ -2285,12 +2280,7 @@ long ErrorCheckIRSwap_Excel(
 	double* PayRef_Rate,			// Pay Leg 할인 금리 Rate Array 
 
 	long NPayCF,					// Pay Leg CashFlow 개수
-	long* Pay_ForwardStartExl,		// Pay Leg Forward Start Date Excel Type Array
-	long* Pay_ForwardEndExl,		// Pay Leg Forward End Date Excel Type Array
-	long* Pay_StartDateExl,			// Pay Leg 기산일 Excel Type Array
-	long* Pay_EndDateExl,			// Pay Leg 기말일 Excel Type Array
-
-	long* Pay_PayDateExl,			// Pay Leg 지급일 Excel Type Array
+	long* PayCashFlowSchedule,		// Pay Forward Start, End, 기산, 기말, 지급일
 	double* Pay_Slope,				// Pay Leg 변동금리 기울기 Array
 	double* Pay_CPN,				// Pay Leg 고정쿠폰 Array
 	double* Pay_FixedRefRate,		// Pay Leg 과거 확정금리 Array
@@ -2301,6 +2291,20 @@ long ErrorCheckIRSwap_Excel(
 )
 {
 	long i;
+
+
+	long* Rcv_ForwardStartExl = RcvCashFlowSchedule;
+	long* Rcv_ForwardEndExl = RcvCashFlowSchedule + NRcvCF;
+	long* Rcv_StartDateExl = RcvCashFlowSchedule + 2 * NRcvCF;
+	long* Rcv_EndDateExl = RcvCashFlowSchedule + 3 * NRcvCF;
+	long* Rcv_PayDateExl = RcvCashFlowSchedule + 4 * NRcvCF;
+
+	long* Pay_ForwardStartExl = PayCashFlowSchedule;
+	long* Pay_ForwardEndExl = PayCashFlowSchedule + NPayCF;
+	long* Pay_StartDateExl = PayCashFlowSchedule + 2 * NPayCF;
+	long* Pay_EndDateExl = PayCashFlowSchedule + 3 * NPayCF;
+	long* Pay_PayDateExl = PayCashFlowSchedule + 4 * NPayCF;
+
 	if (PriceDate_Exl <= 0 || PriceDate_Exl > Rcv_PayDateExl[NRcvCF -1] || PriceDate_Exl > Pay_PayDateExl[NPayCF - 1] || PriceDate_Exl < Rcv_ForwardStartExl[0] - 1000 || PriceDate_Exl < Pay_ForwardStartExl[0] - 1000) return -1;
 
 	if (GreekFlag != 0 && GreekFlag != 1) return -2;
@@ -2451,77 +2455,91 @@ DLLEXPORT(long) IRSwap_Excel(
 	double* RcvRef_Term,			// Rcv Leg 레퍼런스 금리 Term Array
 	double* RcvRef_Rate,			// Rcv Leg 레퍼런스 금리 Rate Array
 	long NRcvCF,					// Rcv Leg CashFlow 개수
-	long* Rcv_ForwardStartExl,		// Rcv Leg Forward Start Date Excel Type Array
-			
-	long* Rcv_ForwardEndExl,		// Rcv Leg Forward End Date Excel Type Array
-	long* Rcv_StartDateExl,			// Rcv Leg 기산일 Excel Type Array
-	long* Rcv_EndDateExl,			// Rcv Leg 기말일 Excel Type Array
-	long* Rcv_PayDateExl,			// Rcv Leg 지급일 Excel Type Array
-	double* Rcv_Slope,				// Rcv Leg 변동금리 기울기 Array
+	long* RcvCashFlowSchedule,		// Rcv Forward Start, End, 기산, 기말, 지급일
 
+	double* Rcv_Slope,				// Rcv Leg 변동금리 기울기 Array
 	double* Rcv_CPN,				// Rcv Leg 고정쿠폰 Array
 	double* Rcv_FixedRefRate,		// Rcv Leg 과거 확정금리 Array
 	long Pay_RefRateType,			// Pay 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
 	long Pay_SwapYearlyNPayment,	// Pay_RefRateType가 1, 3일 때 스왑 연 지급회수
-	double Pay_SwapMaturity,		// Pay_RefRateType가 1, 3일 때 스왑만기
 
+	double Pay_SwapMaturity,		// Pay_RefRateType가 1, 3일 때 스왑만기
 	long Pay_FixFloFlag,			// Pay Fix/Flo Flag
 	long Pay_DayCount,				// Pay DayCountConvention 0:Act365  1: Act360
 	double Pay_NotionalAMT,			// Pay Leg Notional Amount
 	long Pay_NotionalPayDate,		// Pay Leg Notional Payment Date
-	long PayDisc_NTerm,				// Pay Leg 할인 금리 Term 개수
 
+	long PayDisc_NTerm,				// Pay Leg 할인 금리 Term 개수
 	double* PayDisc_Term,			// Pay Leg 할인 금리 Term Array
 	double* PayDisc_Rate,			// Pay Leg 할인 금리 Rate Array 
 	long PayRef_NTerm,				// Pay Leg 레퍼런스 금리 Term 개수
 	double* PayRef_Term,			// Pay Leg 레퍼런스 금리 Term Array
+
 	double* PayRef_Rate,			// Pay Leg 할인 금리 Rate Array 
-
 	long NPayCF,					// Pay Leg CashFlow 개수
-	long* Pay_ForwardStartExl,		// Pay Leg Forward Start Date Excel Type Array
-	long* Pay_ForwardEndExl,		// Pay Leg Forward End Date Excel Type Array
-	long* Pay_StartDateExl,			// Pay Leg 기산일 Excel Type Array
-	long* Pay_EndDateExl,			// Pay Leg 기말일 Excel Type Array
-
-	long* Pay_PayDateExl,			// Pay Leg 지급일 Excel Type Array
+	long* PayCashFlowSchedule,		// Pay Forward Start, End, 기산, 기말, 지급일
 	double* Pay_Slope,				// Pay Leg 변동금리 기울기 Array
 	double* Pay_CPN,				// Pay Leg 고정쿠폰 Array
+
 	double* Pay_FixedRefRate,		// Pay Leg 과거 확정금리 Array
 	double* ResultPrice,			// Output 계산결과 [0] Current Swap Rate [1] Rcv Value [2] Payment Value
-
 	double* ResultRefRate,			// Output 기초금리 Array
 	double* ResultCPN,				// Output 추정 쿠폰 Array
 	double* ResultDF,				// Output Discount Factor Array
+
 	double* PV01,					// Output PV01[0]RcvDisc [1]RcvRef [2]both [3]PayDisc [4]PayRef [5]both
 	double* KeyRateRcvPV01,			// Output Rcv Key Rate PV01 .rehaped(-1)
-
 	double* KeyRatePayPV01,			// Output Pay KeyRate PV01 .reshaped(-1)
 	long* SOFRConv,					// [0~2] Rcv LockOut LookBackFlag [3~5] Pay LockOut LookBackFlag
 	long* HolidayCalcFlag,			// Holiday관련 인풋 Flag [0]: Rcv [1]: Pay
+
 	long* NHolidays,				// Holiday 개수 [0] NRcvRef [1] NPayRef
-	long* Holidays					// Holiday Exceltype
+	long* Holidays,					// Holiday Exceltype
+	long* NHistory,
+	long* HistoryDateExl,
+	double* HistoryRate
 )
 {
 	long i;
 	long ResultCode = 0;
+
 	ResultCode = ErrorCheckIRSwap_Excel(
 		PriceDate_Exl,				GreekFlag,					 NAFlag,					CRS_Flag,					CRS_Info,				
 		Rcv_RefRateType,			Rcv_SwapYearlyNPayment,	Rcv_SwapMaturity,		Rcv_FixFloFlag,			Rcv_DayCount,				
 		Rcv_NotionalAMT,			Rcv_NotionalPayDate,		RcvDisc_NTerm,				RcvDisc_Term,			 RcvDisc_Rate,			
-		RcvRef_NTerm,				RcvRef_Term,			RcvRef_Rate,			 NRcvCF,					 Rcv_ForwardStartExl,		
-		Rcv_ForwardEndExl,		Rcv_StartDateExl,			Rcv_EndDateExl,			Rcv_PayDateExl,			 Rcv_Slope,				
+		RcvRef_NTerm,				RcvRef_Term,			RcvRef_Rate,			 NRcvCF, RcvCashFlowSchedule,			 Rcv_Slope,
 		Rcv_CPN,				Rcv_FixedRefRate,		Pay_RefRateType,			Pay_SwapYearlyNPayment,	Pay_SwapMaturity,		
 		 Pay_FixFloFlag,			Pay_DayCount,			Pay_NotionalAMT,			 Pay_NotionalPayDate,	PayDisc_NTerm,				
 		PayDisc_Term,			PayDisc_Rate,			PayRef_NTerm,				PayRef_Term,			 PayRef_Rate,			
-		NPayCF,					Pay_ForwardStartExl,		Pay_ForwardEndExl,		 Pay_StartDateExl,			 Pay_EndDateExl,			
-		Pay_PayDateExl,			Pay_Slope,				Pay_CPN,				Pay_FixedRefRate,		HolidayCalcFlag,			
+		NPayCF, PayCashFlowSchedule,			Pay_Slope,				Pay_CPN,				Pay_FixedRefRate,		HolidayCalcFlag,
 		NHolidays,				Holidays					);
 
 	if (ResultCode < 0) return ResultCode;
+
+	long* Rcv_ForwardStartExl = RcvCashFlowSchedule;
+	long* Rcv_ForwardEndExl = RcvCashFlowSchedule + NRcvCF;
+	long* Rcv_StartDateExl = RcvCashFlowSchedule + 2 * NRcvCF;
+	long* Rcv_EndDateExl = RcvCashFlowSchedule + 3 * NRcvCF;
+	long* Rcv_PayDateExl = RcvCashFlowSchedule + 4 * NRcvCF;
+
+	long* Pay_ForwardStartExl = PayCashFlowSchedule;
+	long* Pay_ForwardEndExl = PayCashFlowSchedule + NPayCF;
+	long* Pay_StartDateExl = PayCashFlowSchedule + 2 * NPayCF;
+	long* Pay_EndDateExl = PayCashFlowSchedule + 3 * NPayCF;
+	long* Pay_PayDateExl = PayCashFlowSchedule + 4 * NPayCF;
+
+	//////////////////
+	// SOFR History //
+	long Rcv_NHistory = NHistory[0];
+	long Pay_NHistory = NHistory[1];
+	long* Rcv_HistoryDateExl = HistoryDateExl;
+	long* Pay_HistoryDateExl = HistoryDateExl + Rcv_NHistory;
+	double* Rcv_HistoryRate = HistoryRate;
+	double* Pay_HistoryRate = HistoryRate + Rcv_NHistory;
+
 	//////////////////////
 	// CRS 평가할 지 여부
 	//////////////////////
-
 	long CalcCRSFlag = CRS_Flag[0];
 	long Rcv_NTermFX = CRS_Flag[1];
 	long Pay_NTermFX = CRS_Flag[1];
