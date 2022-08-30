@@ -31,7 +31,7 @@
 
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
-double CalcDeterminant(double** mat, long order);
+double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
 long idum = -1;
 
 /////////////////////////////////////////////////
@@ -1136,22 +1136,33 @@ DLLEXPORT(double) Calc_Forward_Rate(
 // the result is put in Y
 void MatrixInversion(double** A, long order, double** Y)
 {
+	long i, j, k, n;
+	double*** MinorMatrixList = (double***)malloc(sizeof(double**) * order);
+	for (i = 0; i < order; i++)
+	{
+		n = max(1, i);
+		MinorMatrixList[i] = (double**)malloc(sizeof(double*) * n);
+		for (j = 0; j < n; j++)
+		{
+			MinorMatrixList[i][j] = (double*)malloc(sizeof(double) * n);
+		}
+	}
 	// get the determinant of a
-	double det = 1.0 / CalcDeterminant(A, order);
+	double det = 1.0 / CalcDeterminant(A, order, MinorMatrixList);
 
 	// memory allocation
 	double* temp = new double[(order - 1) * (order - 1)];
 	double** minor = new double* [order - 1];
-	for (long i = 0; i < order - 1; i++)
+	for (i = 0; i < order - 1; i++)
 		minor[i] = temp + (i * (order - 1));
 
-	for (long j = 0; j < order; j++)
+	for (j = 0; j < order; j++)
 	{
-		for (long i = 0; i < order; i++)
+		for (i = 0; i < order; i++)
 		{
 			// get the co-factor (matrix) of A(j,i)
 			GetMinor(A, minor, j, i, order);
-			Y[i][j] = det * CalcDeterminant(minor, order - 1);
+			Y[i][j] = det * CalcDeterminant(minor, order - 1, MinorMatrixList);
 			if ((i + j) % 2 == 1)
 				Y[i][j] = -Y[i][j];
 		}
@@ -1160,6 +1171,17 @@ void MatrixInversion(double** A, long order, double** Y)
 	// release memory
 	delete[] temp;
 	delete[] minor;
+
+	for (i = 0; i < order; i++)
+	{
+		n = max(1, i);
+		for (j = 0; j < n; j++)
+		{
+			free(MinorMatrixList[i][j]);
+		}
+		free(MinorMatrixList[i]);
+	}
+	free(MinorMatrixList);
 }
 
 // calculate the cofactor of element (row,col)
@@ -1190,7 +1212,7 @@ long GetMinor(double** src, double** dest, long row, long col, long order)
 }
 
 // Calculate the determinant recursively.
-double CalcDeterminant(double** mat, long order)
+double CalcDeterminant(double** mat, long order, double*** MinorMatrixList)
 {
 
 	if (order == 1) return mat[0][0];
@@ -1216,23 +1238,24 @@ double CalcDeterminant(double** mat, long order)
 	double det = 0;
 
 	double** minor;
-	minor = new double* [order - 1];
-	for (long i = 0; i < order - 1; i++)
-		minor[i] = new double[order - 1];
+	minor = MinorMatrixList[max(0, order - 1)];
+	//minor = new double* [order - 1];
+	//for (long i = 0; i < order - 1; i++)
+	//	minor[i] = new double[order - 1];
 
 	for (long i = 0; i < order; i++)
 	{
 		// get minor of element (0,i)
 		GetMinor(mat, minor, 0, i, order);
 		// the recusion is here!
-		det += (i % 2 == 1 ? -1.0 : 1.0) * mat[0][i] * CalcDeterminant(minor, order - 1);
+		det += (i % 2 == 1 ? -1.0 : 1.0) * mat[0][i] * CalcDeterminant(minor, order - 1, MinorMatrixList);
 
 	}
 
 	// release memory
-	for (long i = 0; i < order - 1; i++)
-		delete[] minor[i];
-	delete[] minor;
+	//for (long i = 0; i < order - 1; i++)
+	//	delete[] minor[i];
+	//delete[] minor;
 
 	return det;
 }
