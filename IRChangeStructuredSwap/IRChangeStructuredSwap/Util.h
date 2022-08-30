@@ -1196,7 +1196,23 @@ double CalcDeterminant(double** mat, long order)
 	if (order == 1) return mat[0][0];
 	else if (order == 2) return mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0];
 	else if (order == 3) return mat[0][0] * mat[1][1] * mat[2][2] + mat[0][1] * mat[1][2] * mat[2][0] + mat[0][2] * mat[1][0] * mat[2][1] - (mat[0][2] * mat[1][1] * mat[2][0] + mat[0][1] * mat[1][0] * mat[2][2] + mat[0][0] * mat[1][2] * mat[2][1]);
+	else if (order == 4)
+	{
+		double p1, p2, p3, p4, detA;
+		p1 = mat[0][0] * (mat[1][1] * mat[2][2] * mat[3][3] + mat[1][2] * mat[2][3] * mat[3][1] + mat[1][3] * mat[2][1] * mat[3][2] -
+			mat[1][3] * mat[2][2] * mat[3][1] - mat[1][2] * mat[2][1] * mat[3][3] - mat[1][1] * mat[2][3] * mat[3][2]);
 
+		p2 = -mat[1][0] * (mat[0][1] * mat[2][2] * mat[3][3] + mat[0][2] * mat[2][3] * mat[3][1] + mat[0][3] * mat[2][1] * mat[3][2] -
+			mat[0][3] * mat[2][2] * mat[3][1] - mat[0][2] * mat[2][1] * mat[3][3] - mat[0][1] * mat[2][3] * mat[3][2]);
+
+		p3 = mat[2][0] * (mat[0][1] * mat[1][2] * mat[3][3] + mat[0][2] * mat[1][3] * mat[3][1] + mat[0][3] * mat[1][1] * mat[3][2] -
+			mat[0][3] * mat[1][2] * mat[3][1] - mat[0][2] * mat[1][1] * mat[3][3] - mat[0][1] * mat[1][3] * mat[3][2]);
+
+		p4 = -mat[3][0] * (mat[0][1] * mat[1][2] * mat[2][3] + mat[0][2] * mat[1][3] * mat[2][1] + mat[0][3] * mat[1][1] * mat[2][2] -
+			mat[0][3] * mat[1][2] * mat[2][1] - mat[0][2] * mat[1][1] * mat[2][3] - mat[0][1] * mat[1][3] * mat[2][2]);
+		detA = p1 + p2 + p3 + p4;
+		return detA;
+	}
 	double det = 0;
 
 	double** minor;
@@ -1635,3 +1651,70 @@ double CubicSpline(long nRate, double* Term, double* Rate, double TargetTerm)
 	free(CArray);
 	return y;
 }
+
+long Calibration_CubicSpline_Params(
+	long nRate,
+	double* Term,
+	double* Rate,
+	double* C_Array	// Out: 2Â÷ °è¼ö Param
+)
+{
+	long ResultCode = 1;
+
+	if (nRate < 4)
+	{
+		ResultCode = -1;
+		return ResultCode;
+	}
+
+	Calc_C(nRate, Term, Rate, C_Array);
+	return ResultCode;
+}
+
+double CubicInterpolation(long nRate, double* Term, double* Rate, double* C_Array, double TargetTerm)
+{
+	long i;
+	double a, b, d, y, hi, xp;
+
+	if (nRate < 4) return Interpolate_Linear(Term, Rate, nRate, TargetTerm);
+
+	if (Term[0] >= TargetTerm)
+	{
+		// Extrapolation
+		//hi = Term[1] - Term[0];
+		//xp = TargetTerm - Term[0];
+		//a = Rate[0];
+		//b = (Rate[1] - Rate[0])/ hi - hi * (2.0 * C_Array[0] + C_Array[1]) / 3.0;
+		//d = (C_Array[1] - C_Array[0]) / (3.0 * hi);
+		//y = a + b * xp + C_Array[0] * xp * xp + d * xp * xp * xp;
+		y = Rate[0];
+	}
+	else if (Term[nRate - 1] <= TargetTerm)
+	{
+		// Extrapolation
+		//hi = Term[nRate - 1] - Term[nRate - 2];
+		//xp = TargetTerm - Term[nRate - 2];
+		//a = Rate[nRate - 2];
+		//b = (Rate[nRate - 1] - Rate[nRate - 2]) / hi - hi * (2.0 * C_Array[nRate - 2] + C_Array[nRate - 1]) / 3.0;
+		//d = (C_Array[nRate - 1] - C_Array[nRate - 2]) / (3.0 * hi);
+		//y = a + b * xp + C_Array[nRate - 2] * xp * xp + d * xp * xp * xp;
+		y = Rate[nRate - 1];
+	}
+	else
+	{
+		for (i = 1; i < nRate; i++)
+		{
+			if (Term[i] > TargetTerm) {
+				hi = Term[i] - Term[i - 1];
+				xp = TargetTerm - Term[i - 1];
+				a = Rate[i - 1];
+				b = (Rate[i] - Rate[i - 1]) / hi - hi * (2.0 * C_Array[i - 1] + C_Array[i]) / 3.0;
+				d = (C_Array[i] - C_Array[i - 1]) / (3.0 * hi);
+				y = a + b * xp + C_Array[i - 1] * xp * xp + d * xp * xp * xp;
+				break;
+			}
+		}
+	}
+	return y;
+}
+

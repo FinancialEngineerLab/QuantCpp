@@ -1100,30 +1100,27 @@ long Preprocessing_HiFive_MC_Excel(
 	// 기준가 대비 현재주가 계산, Correlation Matrix 형태로 Reshape
 	/////////////////////////////////////////////////////
 
-	double* S0_Value = (double*)malloc(sizeof(double) * NStock);
-	double** CorrelationMatrix = (double**)malloc(sizeof(double*) * NStock);
+	double* S0_Value = (double*)malloc(sizeof(double) * NStock);						// 1
+	double** CorrelationMatrix = (double**)malloc(sizeof(double*) * NStock);			// 2
 	for (i = 0; i < NStock; i++)
 	{
 		S0_Value[i] = S[i] / X[i];
 		CorrelationMatrix[i] = CorrelationReshaped + i * NStock;
 
 		// Diagonal Check
-		if (CorrelationMatrix[i][i] != 1.0)
-		{
-			CorrelationMatrix[i][i] = 1.0;
-		}
+		if (CorrelationMatrix[i][i] != 1.0) CorrelationMatrix[i][i] = 1.0;
 	}
 
 	// 최대 시뮬레이션횟수
 	MaxSimulDays = DayCountAtoB(PricingDate_Ctype, PayDate_Ctype[NEvaluate - 1]) + 1; 
 
 	// Day Difference 정의를 통해 시뮬레이션이 필요한 지 아닌지 판단
-	long* Days_Autocall_Eval = (long*)malloc(sizeof(long) * max(NEvaluate, 1));
-	long* Days_Autocall_Pay = (long*)malloc(sizeof(long) * max(NEvaluate, 1));
-	long* Days_LizardStart = (long*)malloc(sizeof(double) * max(NLizard, 1));
-	long* Days_LizardEnd = (long*)malloc(sizeof(double) * max(NLizard, 1));
-	long* Days_CPN_Eval = (long*)malloc(sizeof(double) * max(NCPN, 1));
-	long* Days_CPN_Pay = (long*)malloc(sizeof(double) * max(NCPN, 1));
+	long* Days_Autocall_Eval = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 3
+	long* Days_Autocall_Pay = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 4
+	long* Days_LizardStart = (long*)malloc(sizeof(double) * max(NLizard, 1));			// 5
+	long* Days_LizardEnd = (long*)malloc(sizeof(double) * max(NLizard, 1));				// 6
+	long* Days_CPN_Eval = (long*)malloc(sizeof(double) * max(NCPN, 1));					// 7
+	long* Days_CPN_Pay = (long*)malloc(sizeof(double) * max(NCPN, 1));					// 8
 
 	for (i = 0; i < NEvaluate; i++)
 	{
@@ -1159,8 +1156,8 @@ long Preprocessing_HiFive_MC_Excel(
 	double minS;
 	double T_CPN;
 	double DF_CPN;
-	double* SortedStrike = (double*)malloc(sizeof(double) * nK);
-	long* StrikeIdx = (long*)malloc(sizeof(long) * nK);
+	double* SortedStrike = (double*)malloc(sizeof(double) * nK);				// 9
+	long* StrikeIdx = (long*)malloc(sizeof(long) * nK);							// 10
 	double RedempSlope = 0.0;
 	double RedempCPN = 0.0;
 	// 가격계산시점 조기상환여부 체크
@@ -1497,9 +1494,9 @@ long Preprocessing_HiFive_MC_Excel(
 	info_hifive.Days_Autocall_Eval = Days_Autocall_Eval + Evaluation_Idx;
 	info_hifive.Days_Autocall_Pay = Days_Autocall_Pay + Evaluation_Idx;
 
-	double** AdjStrike = (double**)malloc(sizeof(double*) * nK);
-	double** AdjSlope = (double**)malloc(sizeof(double*) * nK);
-	double** AdjFixedAmount = (double**)malloc(sizeof(double*) * nK);
+	double** AdjStrike = (double**)malloc(sizeof(double*) * nK);				// 11
+	double** AdjSlope = (double**)malloc(sizeof(double*) * nK);					// 12
+	double** AdjFixedAmount = (double**)malloc(sizeof(double*) * nK);			// 13
 
 	for (i = 0; i < nK; i++)
 	{
@@ -1596,7 +1593,7 @@ long Preprocessing_HiFive_MC_Excel(
 		}
 	}
 
-	double* CF = (double*)calloc((NEvaluate + 2 + NLizard), sizeof(double));
+	double* CF = (double*)calloc((NEvaluate + 2 + NLizard), sizeof(double));			// 14
 
 	long pricingonly = 1;
 	if (GreekFlag == 0) pricingonly = 1;
@@ -1732,18 +1729,16 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 		Vol, ResultPrice, AutocallProb, CPNProb, ResultLocalVol,
 		Error);
 
-	if (ResultCode < 0)
-		return ResultCode;
-
+	if (ResultCode < 0) return ResultCode;
 
 	/////////////
 	// 변수 다 풀기 and Reshape하기
 	/////////////
 	
 	long nK = 3;
-	double** Strike = (double**)malloc(sizeof(double*) * nK);
-	double** AutocallSlope = (double**)malloc(sizeof(double*) * nK);
-	double** AutocallCPN = (double**)malloc(sizeof(double*) * nK);
+	double** Strike = (double**)malloc(sizeof(double*) * nK);			// 1
+	double** AutocallSlope = (double**)malloc(sizeof(double*) * nK);	// 2
+	double** AutocallCPN = (double**)malloc(sizeof(double*) * nK);		// 3
 	for (i = 0; i < nK; i++)
 	{
 		Strike[i] = StrikeLevel + NEvaluate * i;
@@ -1771,24 +1766,24 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 
 	long PricingDate_Ctype = ExcelDateToCDate(PricingDate_Excel);
 
-	long* EvalDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));
-	long* PayDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));
+	long* EvalDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 4
+	long* PayDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 5
 	for (i = 0; i < NEvaluate; i++)
 	{
 		EvalDate_Ctype[i] = ExcelDateToCDate(EvalDate_Excel[i]);
 		PayDate_Ctype[i] = ExcelDateToCDate(PayDate_Excel[i]);
 	}
 
-	long* LizardStartDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));
-	long* LizardEndDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));
+	long* LizardStartDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));	// 6
+	long* LizardEndDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));	// 7
 	for (i = 0; i < NLizard; i++)
 	{
 		LizardStartDate_Ctype[i] = ExcelDateToCDate(LizardStartDate_Excel[i]);
 		LizardEndDate_Ctype[i] = ExcelDateToCDate(LizardEndDate_Excel[i]);
 	}
 
-	long* CPN_EvaluateDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));
-	long* CPN_PayDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));
+	long* CPN_EvaluateDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));	// 8
+	long* CPN_PayDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));			// 9
 	for (i = 0; i < NCPN; i++)
 	{
 		CPN_EvaluateDate_Ctype[i] = ExcelDateToCDate(CPN_EvaluateDate_Excel[i]);
@@ -1797,7 +1792,7 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 
 	k = 0;
 	for (i = 0; i < NStock; i++) k += NParityVol[i];
-	double* ParityVol_Adj = (double*)malloc(sizeof(double) * k);
+	double* ParityVol_Adj = (double*)malloc(sizeof(double) * k);					// 10
 
 	k = 0;
 	for (i = 0; i < NStock; i++)
@@ -1810,7 +1805,7 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	}
 
 	long MaxSimulDays = DayCountAtoB(PricingDate_Ctype, PayDate_Ctype[NEvaluate - 1]) + 1;
-	double*** FixedRandn = (double***)malloc(sizeof(double**) * NSimul);
+	double*** FixedRandn = (double***)malloc(sizeof(double**) * NSimul);			// 11
 	if (GreekFlag != 0)
 	{
 		randnorm(0);
@@ -1845,16 +1840,14 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 												TermVol, Vol, ResultPrice, AutocallProb, CPNProb,
 												ResultLocalVol, ParityVol, FixedRandn);
 
-	long* nvolsum = (long*)malloc(sizeof(long) * (NStock + 1));
+	long* nvolsum = (long*)malloc(sizeof(long) * (NStock + 1));										// 12
 	nvolsum[0] = 0;
-	for (i = 1; i < NStock + 1; i++)
-	{
-		nvolsum[i] = nvolsum[i - 1] + NParityVol[i - 1] * NTermVol[i - 1];
-	}
-	double* ResultPriceTemp = (double*)malloc(sizeof(double) * (1 + NStock * 3));
-	double* AutocallProbTemp = (double*)malloc(sizeof(double) * 2 * (NEvaluate + 2 + NLizard));
-	double* CPNProbTemp = (double*)malloc(sizeof(double) * max(1, NCPN * 2));
-	double* ResultLocalVolTemp = (double*)malloc(sizeof(double) * nvolsum[NStock]);
+	for (i = 1; i < NStock + 1; i++) nvolsum[i] = nvolsum[i - 1] + NParityVol[i - 1] * NTermVol[i - 1];
+
+	double* ResultPriceTemp = (double*)malloc(sizeof(double) * (1 + NStock * 3));					// 13
+	double* AutocallProbTemp = (double*)malloc(sizeof(double) * 2 * (NEvaluate + 2 + NLizard));		// 14
+	double* CPNProbTemp = (double*)malloc(sizeof(double) * max(1, NCPN * 2));						// 15
+	double* ResultLocalVolTemp = (double*)malloc(sizeof(double) * nvolsum[NStock]);					// 16
 
 	if (GreekFlag > 0)
 	{
@@ -1983,12 +1976,6 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 		free(voltempdn);
 	}
 
-	free(nvolsum);
-	free(ResultPriceTemp);
-	free(AutocallProbTemp);
-	free(CPNProbTemp);
-	free(ResultLocalVolTemp);
-
 	free(Strike);
 	free(AutocallSlope);
 	free(AutocallCPN);
@@ -1998,6 +1985,14 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	free(LizardEndDate_Ctype);
 	free(CPN_EvaluateDate_Ctype);
 	free(CPN_PayDate_Ctype);
+	free(ParityVol_Adj);
+
+	free(nvolsum);
+	free(ResultPriceTemp);
+	free(AutocallProbTemp);
+	free(CPNProbTemp);
+	free(ResultLocalVolTemp);
+
 	
 	if (GreekFlag != 0)
 	{
@@ -2011,7 +2006,6 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 		}
 	}
 	free(FixedRandn);
-	free(ParityVol_Adj);
 	_CrtDumpMemoryLeaks();
 
 	return ResultCode;

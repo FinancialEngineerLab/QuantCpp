@@ -1,16 +1,17 @@
 ﻿  SABR.cpp
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1448,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1448,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1444,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1445,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1473,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1473,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1469,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1470,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\Util.h(1488,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\SABR.cpp(13,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\SABR_거의완성\SABR\SABR.cpp(306,7): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-  SABR.vcxproj -> C:\Users\limds1557\git_daesun5\SABR_거의완성\Debug\SABR.exe
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1464,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1464,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1460,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1461,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1489,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1489,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1485,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1486,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\Util.h(1504,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\SABR.cpp(13,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\SABR_거의완성\SABR\SABR.cpp(281,7): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+     C:\Users\KDB\github5\SABR_거의완성\Debug\SABR.lib 라이브러리 및 C:\Users\KDB\github5\SABR_거의완성\Debug\SABR.exp 개체를 생성하고 있습니다.
+  SABR.vcxproj -> C:\Users\KDB\github5\SABR_거의완성\Debug\SABR.exe

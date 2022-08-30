@@ -240,52 +240,27 @@ void Levenberg_Marquardt_SABR(
 	double** JT_Res = make_array(NParams, 1);
 	double** ResultMatrix = make_array(NParams, 1);
 
-	if (Levenberg == 0)
+	lambda[0] = 0.0;
+	for (n = 0; n < 50; n++)
 	{
-		for (n = 0; n < 50; n++)
-		{
-			make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew,   Beta, Futures);
+		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, Futures);
 
-			Print_Array(TempJacovMatrix, NResidual, NParams);
-			printf("\n");
+		//Print_Array(TempJacovMatrix, NResidual, NParams);
+		//printf("\n");
 
-			make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, Futures,  Beta, absErrorSum, SABRVolNew);
+		make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, Futures, Beta, absErrorSum, SABRVolNew);
 
-			if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+		//Print_Array(ResidualArray, NResidual);
+		//printf("\n");
 
-			Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
-			for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
+		if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
 
-			if (ParamSum < StopCondition && n > 10) break;
-			if (BreakFlag == 1) break;
+		Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
+		for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
-			PrevAbsErrorSum = absErrorSum;
-		}
-	}
-	else
-	{
-		lambda[0] = 0.0;
-		for (n = 0; n < 50; n++)
-		{
-			make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, Futures);
+		if (ParamSum < StopCondition && n > 10) break;
 
-			//Print_Array(TempJacovMatrix, NResidual, NParams);
-			//printf("\n");
-
-			make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, Futures,  Beta, absErrorSum, SABRVolNew);
-
-			//Print_Array(ResidualArray, NResidual);
-			//printf("\n");
-
-			if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
-
-			Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
-			for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
-
-			if (ParamSum < StopCondition && n > 10) break;
-
-			PrevAbsErrorSum = absErrorSum;
-		}
+		PrevAbsErrorSum = absErrorSum;
 	}
 
 	free(NextParams);
