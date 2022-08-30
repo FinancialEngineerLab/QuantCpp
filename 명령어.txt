@@ -1,0 +1,13 @@
+git init
+git remote add origin "repository address"
+https://github.com/ciiadaesun/QuantCpp.git
+
+git pull origin master
+
+git status
+git add .
+git commit -m "_"
+git push origin +master
+
+git remote remove origin
+git remote -v
