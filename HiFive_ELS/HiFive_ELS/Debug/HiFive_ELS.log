@@ -1,27 +1,28 @@
 ﻿  HiFive_ELS.cpp
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1448,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1448,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1444,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1445,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1473,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1473,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1469,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1470,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(1488,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(260,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(260,11): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(260,8): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(301,12): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(301,9): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(691,9): warning C4101: 'Drift' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(692,9): warning C4101: 'Diffusion' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3508,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3508,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(374): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
-     C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.lib 라이브러리 및 C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.exp 개체를 생성하고 있습니다.
-  HiFive_ELS.vcxproj -> C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.dll
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1448,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1448,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1444,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1445,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1473,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1473,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1469,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1470,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\Util.h(1488,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(117,10): warning C4101: 'T_Plus' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(262,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(262,11): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(262,8): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(303,12): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(303,9): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(693,9): warning C4101: 'Drift' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(694,9): warning C4101: 'Diffusion' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3458,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3458,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(374): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
+     C:\Users\KDB\github5\HiFive_ELS\Debug\HiFive_ELS.lib 라이브러리 및 C:\Users\KDB\github5\HiFive_ELS\Debug\HiFive_ELS.exp 개체를 생성하고 있습니다.
+  HiFive_ELS.vcxproj -> C:\Users\KDB\github5\HiFive_ELS\Debug\HiFive_ELS.dll

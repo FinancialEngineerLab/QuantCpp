@@ -72,15 +72,14 @@ public:
 	{
 		long i;
 		long TimePos = 0;
-		double T, T_Plus;
+		double deltat = 1.0 / 365.0;
+		double T;
 
 		T = 0.0;
-		T_Plus = 1.0 / 365.0;
 		for (i = 0; i < lengthday; i++)
 		{
-			T_Plus = T + 1.0 / 365.0;
 			forward_rate_daily[i] = Calc_Forward_Rate_Daily(term, rate, nterm, T, &TimePos);
-			T += 1.0 / 365.0;
+			T += deltat;
 		}
 
 	}
@@ -91,15 +90,14 @@ public:
 	{
 		long i;
 		long TimePos = 0;
-		double T, T_Plus;
+		double deltat = 1.0 / 365.0;
+		double T;
 
 		T = 0.0;
-		T_Plus = 1.0 / 365.0;
 		for (i = 0; i < lengthday; i++)
 		{
-			T_Plus = T + 1.0 / 365.0;
 			forward_fxvol_daily[i] = Calc_Forward_FXVol_Daily(term, rate, nterm, T, &TimePos);
-			T += 1.0 / 365.0;
+			T += deltat;
 		}
 
 	}
@@ -130,12 +128,10 @@ public:
 		{
 
 			T = 0.0;
-			T_Plus = 1.0 / 365.0;
 			for (i = 0; i < lengthday; i++)
 			{
-				T_Plus = T + dt;
 				div_daily[i] = Calc_Forward_Rate_Daily(term, div, nterm, T, &TimePos);
-				T += 1.0 / 365.0;
+				T += dt;
 			}
 		}
 		else
@@ -174,6 +170,7 @@ public:
 		long* NTerm_FXVol, double* Term_FXVol, double* Rate_FXVol, long* Quanto_Flag, double* Quanto_Corr)
 	{
 		long i, j;
+
 		long Sum_NTerm_Rf = 0;
 		long Sum_NTerm_Div = 0;
 		long Sum_NTerm_FXVol = 0;
@@ -181,35 +178,40 @@ public:
 		long nterm_riskfree = 0;
 		long nterm_dividend = 0;
 		long nterm_fx_volatility = 0;
+		
 		if (daily_flag == 0)
 		{
 			daily_flag = 1;
+
 			daily_forward_rate = (double**)malloc(sizeof(double*) * nstock);
 			daily_forward_div = (double**)malloc(sizeof(double*) * nstock);
 			divtype = (long*)malloc(sizeof(long*) * nstock);
 			daily_forward_fxvol = (double**)malloc(sizeof(double*) * nstock);
 			quantoflag = (long*)malloc(sizeof(long*) * nstock);
 			quantocorr = (double*)malloc(sizeof(double) * nstock);
+
 			for (i = 0; i < nstock; i++)
 			{
 				nterm_riskfree = NTerm_Rf[i];
 				nterm_dividend = NTerm_Div[i];
 				nterm_fx_volatility = NTerm_FXVol[i];
+
 				daily_forward_rate[i] = (double*)malloc(sizeof(double) * maxsimulnode);
 				daily_forward_div[i] = (double*)malloc(sizeof(double) * maxsimulnode);
 				divtype[i] = DivType[i];
 				daily_forward_fxvol[i] = (double*)malloc(sizeof(double) * maxsimulnode);
 				quantoflag[i] = Quanto_Flag[i];
 				quantocorr[i] = Quanto_Corr[i];
+
 				ForwardRateDaily(nterm_riskfree, Term_Rf + Sum_NTerm_Rf, Rate_Rf + Sum_NTerm_Rf, daily_forward_rate[i], maxsimulnode);
+
 				if (Quanto_Flag[i] > 0)
 				{
 					ForwardFXVolDaily(nterm_fx_volatility, Term_FXVol + Sum_NTerm_FXVol, Rate_FXVol + Sum_NTerm_FXVol, daily_forward_fxvol[i], maxsimulnode);
 				}
 				else
 				{
-					for (j = 0; j < maxsimulnode; j++)
-						daily_forward_fxvol[i][j] = 0.0;
+					for (j = 0; j < maxsimulnode; j++) daily_forward_fxvol[i][j] = 0.0;
 				}
 				ForwardDivDaily(nterm_dividend, Term_Div + Sum_NTerm_Div, Div + Sum_NTerm_Div, DivType[i], s0[i], daily_forward_div[i], maxsimulnode);
 
@@ -747,11 +749,8 @@ double Pricing_HiFive_MC(
 
 	for (i = 0; i < info_simul.nsimul; i++)
 	{
-
 		Now_KI_State = info_hifive.Now_KI_State;
-		if (info_hifive.NLizard > 0)
-			Now_Lizard_KI_State = info_hifive.Now_Lizard_KI_State[0];
-
+		if (info_hifive.NLizard > 0) Now_Lizard_KI_State = info_hifive.Now_Lizard_KI_State[0];
 
 		T = 0.0;
 		Payoff = 0.0;
@@ -762,7 +761,6 @@ double Pricing_HiFive_MC(
 			ParityNode[n] = 0;
 			StockPrice[n] = info_simul.s0[n];
 		}
-
 
 		RedempFlag = 0;
 
@@ -797,29 +795,15 @@ double Pricing_HiFive_MC(
 				NextLizardCoupon = info_hifive.Lizard_Coupon[0];
 			}
 			//현재 리자드 상태 체크
-			if (NextLizardStart < 0 && NextLizardEnd > 0 && SortedS0[0] < NextLizardBarrier)
-			{
-				Now_Lizard_KI_State = 1;
-			}
+			if (NextLizardStart < 0 && NextLizardEnd > 0 && SortedS0[0] < NextLizardBarrier) Now_Lizard_KI_State = 1;
+
 		}
-
-
 
 		for (j = 1; j < info_hifive.Days_Autocall_Eval[info_hifive.NEvaluation - 1] + 1; j++)
 		{
-			if (pricingonly == 1)
+			for (n = 0; n < info_simul.nstock; n++)
 			{
-				for (n = 0; n < info_simul.nstock; n++)
-				{
-					Randn[n] = randnorm();
-				}
-			}
-			else
-			{
-				for (n = 0; n < info_simul.nstock; n++)
-				{
-					Randn[n] = info_simul.Call_Randn(i, j - 1, n);
-				}
+				Randn[n] = info_simul.Call_Randn(i, j - 1, n);
 			}
 
 			for (n = 0; n < info_simul.nstock; n++)
@@ -832,9 +816,6 @@ double Pricing_HiFive_MC(
 				}
 
 				Vol = (VolMatrixList + n)->Calc_Volatility_for_Simulation(T, StockPrice[n], TimeNode + n, ParityNode + n);
-				//Drift = (info_simul.daily_forward_rate[n][j - 1] - 0.5 * Vol * Vol - info_simul.quantocorr[n] * Vol*info_simul.daily_forward_fxvol[n][j - 1] - info_simul.daily_forward_div[n][j - 1]) * dt;
-				//Diffusion = Vol * sqrt_dt * Epsilon;
-				//StockPrice[n] = PrevS * exp(Drift + Diffusion);
 				StockPrice[n] = PrevS * (1.0 + (info_simul.daily_forward_rate[n][j - 1] - info_simul.quantocorr[n] * Vol * info_simul.daily_forward_fxvol[n][j - 1] - info_simul.daily_forward_div[n][j - 1]) * dt + Vol * sqrt_dt * Epsilon);
 				SortedS[n] = StockPrice[n];
 				IdxS[n] = n;
@@ -843,16 +824,9 @@ double Pricing_HiFive_MC(
 			bubble_sort(SortedS, IdxS, info_simul.nstock);
 			// Continuous Barrier
 
-			if (SortedS[0] < info_hifive.KI_Barrier_Level && info_hifive.KI_Method == 1)
-				Now_KI_State = 1;
+			if (SortedS[0] < info_hifive.KI_Barrier_Level && info_hifive.KI_Method == 1) Now_KI_State = 1;
 
 			// Lizard Barrier KI Check
-
-			if (i == 46 && j == 10)
-			{
-				temp = 0.0;
-			}
-
 			if (j >= NextLizardStart && j < NextLizardEnd)
 			{
 				if (SortedS[0] < NextLizardBarrier)
@@ -861,13 +835,7 @@ double Pricing_HiFive_MC(
 				}
 			}
 
-			if (i == 46 && j == 10)
-			{
-				temp = 0.0;
-			}
-
 			// Coupon Check
-
 			if ( (NextCouponDate == NextCouponPay &&  j == NextCouponDate) || (j >= NextCouponDate && j < NextCouponPay))
 			{
 				NextCoupon_Idx = min(info_hifive.NCPN - 1, NextCoupon_Idx + 1);
@@ -912,11 +880,8 @@ double Pricing_HiFive_MC(
 						info_simul.pathprice[i] = info_simul.pathprice[i] + RedempPayoff * Disc;
 						RedempFlag = 1;
 
-						if (pricingonly == 1)
-						{
-							AutocallProb[NextAutocall_Idx] += RedempPayoff / (double)info_simul.nsimul;
-							CF[NextAutocall_Idx] += 1.0 / (double)info_simul.nsimul;
-						}
+						AutocallProb[NextAutocall_Idx] += RedempPayoff / (double)info_simul.nsimul;
+						CF[NextAutocall_Idx] += 1.0 / (double)info_simul.nsimul;
 
 						break;
 					}
@@ -945,11 +910,8 @@ double Pricing_HiFive_MC(
 					info_simul.pathprice[i] = info_simul.pathprice[i] + RedempPayoff * Disc;
 					LizardRedempFlag = 1;
 
-					if (pricingonly == 1)
-					{
-						AutocallProb[info_hifive.NEvaluation + 2 + NextLizard_Idx] += RedempPayoff / (double)info_simul.nsimul;
-						CF[info_hifive.NEvaluation + 2 + NextLizard_Idx] += 1.0 / (double)info_simul.nsimul;
-					}
+					AutocallProb[info_hifive.NEvaluation + 2 + NextLizard_Idx] += RedempPayoff / (double)info_simul.nsimul;
+					CF[info_hifive.NEvaluation + 2 + NextLizard_Idx] += 1.0 / (double)info_simul.nsimul;
 
 					break;;
 				}
@@ -1000,11 +962,8 @@ double Pricing_HiFive_MC(
 				Disc = DF_Array[info_hifive.NEvaluation - 1];
 				info_simul.pathprice[i] = info_simul.pathprice[i] + RedempPayoff * Disc;
 
-				if (pricingonly == 1)
-				{
-					AutocallProb[info_hifive.NEvaluation + 1] += RedempPayoff / (double)info_simul.nsimul;
-					CF[info_hifive.NEvaluation + 1] += 1.0 / (double)info_simul.nsimul;
-				}
+				AutocallProb[info_hifive.NEvaluation + 1] += RedempPayoff / (double)info_simul.nsimul;
+				CF[info_hifive.NEvaluation + 1] += 1.0 / (double)info_simul.nsimul;
 			}
 			else
 			{
@@ -1023,30 +982,19 @@ double Pricing_HiFive_MC(
 				Disc = DF_Array[info_hifive.NEvaluation - 1];
 				info_simul.pathprice[i] = info_simul.pathprice[i] + RedempPayoff * Disc;
 
-				if (pricingonly == 1)
-				{
-					AutocallProb[info_hifive.NEvaluation] += RedempPayoff / (double)info_simul.nsimul;
-					CF[info_hifive.NEvaluation] += 1.0 / (double)info_simul.nsimul;
-				}
+				AutocallProb[info_hifive.NEvaluation] += RedempPayoff / (double)info_simul.nsimul;
+				CF[info_hifive.NEvaluation] += 1.0 / (double)info_simul.nsimul;
 			}
 		}
 
 	}
 
 	MeanPrice = 0.0;
-	for (i = 0; i < info_simul.nsimul; i++)
-	{
-		MeanPrice += info_simul.pathprice[i] / (double)info_simul.nsimul;
-	}
+	for (i = 0; i < info_simul.nsimul; i++) MeanPrice += info_simul.pathprice[i] / (double)info_simul.nsimul;
 
-	if (pricingonly > 0)
-	{
-		ResultPrice[0] = MeanPrice;
-	}
+	ResultPrice[0] = MeanPrice;
 
-
-	for (i = 0; i < info_simul.nstock; i++)
-		free(Cholesky_Matrix[i]);
+	for (i = 0; i < info_simul.nstock; i++) free(Cholesky_Matrix[i]);
 	free(Cholesky_Matrix);
 
 	free(TimeNode);
@@ -1651,6 +1599,8 @@ long Preprocessing_HiFive_MC_Excel(
 	double* CF = (double*)calloc((NEvaluate + 2 + NLizard), sizeof(double));
 
 	long pricingonly = 1;
+	if (GreekFlag == 0) pricingonly = 1;
+	else pricingonly = 0;
 
 	// 시뮬레이션이 필요 없을 경우
 	if (RedempFlag > 0 || LizardRedempFlag > 0)
