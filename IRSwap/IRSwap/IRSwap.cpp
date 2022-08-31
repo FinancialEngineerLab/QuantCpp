@@ -58,6 +58,18 @@ long isin(long x, long* array, long narray)
 	return s;
 }
 
+long isweekend(long ExlDate)
+{
+	// 나머지 1이면 일요일, 2이면 월요일, 3이면 화요일, 4이면 수요일, 5이면 목요일, 6이면 금요일, 0이면 토요일
+	long MOD7;
+	if (ExlDate > 0)
+	{
+		MOD7 = ExlDate % 7;
+		if (MOD7 == 1 || MOD7 == 0) return 1;
+	}
+	return 0;
+}
+
 double Continuous_ForwardRate(curveinfo& Curve, double T0, double T1)
 {
 	double r0, r1;
@@ -179,10 +191,16 @@ typedef struct schd_info {
 
 	long Days_Notional;			// 평가일 to Notional 지급일
 
-
 	long LockOutRef;			//  LockOut 날짜 N영업일
 	long LookBackRef;			//  LookBack 날짜 
 	long ObservationShift;		//  Observation Shift 할 지여부
+
+	long *NWeekendDate;			//  주말개수(길이 = NCF)
+	long** WeekendList;			//  주말 Array 리스트
+
+	long NRefHistory;
+	long* RefHistoryDate;
+	double* RefHistory;
 
 } SCHD;
 
@@ -289,6 +307,8 @@ double SOFR_ForwardRate_Compound(
 	long j;
 	long k;
 	long n;
+
+
 
 	long HolidayFlag = 0;
 	long HolidayFlag2 = 0;
@@ -1499,6 +1519,17 @@ double LegValue(
 	if (Schedule->DayCount == 0) denominator = 365.0;
 	else denominator = 360.0;
 
+	///////////////
+	// SOFR 관련 //
+	///////////////
+
+	long UseHistorySOFR;
+	long* NSaturSunDay_List = Schedule->NWeekendDate;
+	long** SaturSunDay_List = Schedule->WeekendList;
+	long NRefHistory = Schedule->NRefHistory;
+	long* RefHistoryDate = Schedule->RefHistoryDate;
+	double* RefHistory = Schedule->RefHistory;
+
 	double Ref_T0, Ref_T1, SwapStartT, SwapEndT;
 	double Frac_T0, Frac_T1;
 	double Pay_T;
@@ -1624,7 +1655,7 @@ double LegValue(
 					SwapEndT = SwapStartT + Schedule->RefSwapMaturity;
 					Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
 
-					if (Schedule->Days_ForwardStart[i] <= 0) FixedRateFlag = 1;
+					if (Schedule->Days_ForwardStart[i] < 0) FixedRateFlag = 1;
 					else FixedRateFlag = 0;
 
 					if (CRSFlag == 0) FXRate = 1.0;
@@ -2501,6 +2532,8 @@ DLLEXPORT(long) IRSwap_Excel(
 )
 {
 	long i;
+	long j;
+	long k;
 	long ResultCode = 0;
 
 	ResultCode = ErrorCheckIRSwap_Excel(
@@ -2536,6 +2569,72 @@ DLLEXPORT(long) IRSwap_Excel(
 	long* Pay_HistoryDateExl = HistoryDateExl + Rcv_NHistory;
 	double* Rcv_HistoryRate = HistoryRate;
 	double* Pay_HistoryRate = HistoryRate + Rcv_NHistory;
+
+	long* Rcv_HistoryRelDate = (long*)malloc(sizeof(long) * Rcv_NHistory);
+	long* Pay_HistoryRelDate = (long*)malloc(sizeof(long) * Pay_NHistory);
+	for (i = 0; i < Rcv_NHistory; i++) Rcv_HistoryRelDate[i] = Rcv_HistoryDateExl[i] - PriceDate_Exl;
+	for (i = 0; i < Pay_NHistory; i++) Pay_HistoryRelDate[i] = Pay_HistoryDateExl[i] - PriceDate_Exl;
+
+	long WeekCheckStart;
+	long WeekCheckEnd;
+
+	long NWeekend;
+
+	long* NRcv_Weekend = (long*)malloc(sizeof(long) * NRcvCF);
+	long** Rcv_Weekend = (long**)malloc(sizeof(long*) * NRcvCF);
+	
+	for (i = 0; i < NRcvCF; i++)
+	{
+		WeekCheckStart = Rcv_ForwardStartExl[i] - 100;
+		WeekCheckEnd = Rcv_ForwardEndExl[i];
+		NWeekend = 0;
+		for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+		{
+			if (isweekend(j) == 1)
+			{
+				NWeekend += 1;
+			}
+		}
+		NRcv_Weekend[i] = NWeekend;
+		Rcv_Weekend[i] = (long*)malloc(sizeof(long) * max(1,NWeekend) );
+		k = 0;
+		for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+		{
+			if (isweekend(j) == 1)
+			{
+				Rcv_Weekend[i][k] =  j - PriceDate_Exl;
+				k += 1;
+			}
+		}
+	}
+
+	long* NPay_Weekend = (long*)malloc(sizeof(long) * NPayCF);
+	long** Pay_Weekend = (long**)malloc(sizeof(long*) * NPayCF);
+
+	for (i = 0; i < NPayCF; i++)
+	{
+		WeekCheckStart = Pay_ForwardStartExl[i] - 100;
+		WeekCheckEnd = Pay_ForwardEndExl[i];
+		NWeekend = 0;
+		for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+		{
+			if (isweekend(j) == 1)
+			{
+				NWeekend += 1;
+			}
+		}
+		NPay_Weekend[i] = NWeekend;
+		Pay_Weekend[i] = (long*)malloc(sizeof(long) * max(1, NWeekend));
+		k = 0;
+		for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+		{
+			if (isweekend(j) == 1)
+			{
+				Pay_Weekend[i][k] = j - PriceDate_Exl;
+				k += 1;
+			}
+		}
+	}
 
 	//////////////////////
 	// CRS 평가할 지 여부
@@ -2683,6 +2782,11 @@ DLLEXPORT(long) IRSwap_Excel(
 	Rcv_Schedule->FixedFlotype = Rcv_FixFloFlag;
 	Rcv_Schedule->DayCount = Rcv_DayCount;
 	Rcv_Schedule->NotionalAmount = Rcv_NotionalAMT;
+	Rcv_Schedule->NWeekendDate = NRcv_Weekend;
+	Rcv_Schedule->WeekendList = Rcv_Weekend;
+	Rcv_Schedule->NRefHistory = Rcv_NHistory;
+	Rcv_Schedule->RefHistoryDate = Rcv_HistoryRelDate;
+	Rcv_Schedule->RefHistory = Rcv_HistoryRate;
 
 	if (Rcv_RefRateType != 0 && Rcv_RefRateType != 2) Rcv_Schedule->RefSwapFlag = 1;
 	Rcv_Schedule->NSwapPayAnnual = Rcv_SwapYearlyNPayment;
@@ -2722,6 +2826,11 @@ DLLEXPORT(long) IRSwap_Excel(
 	Pay_Schedule->FixedFlotype = Pay_FixFloFlag;
 	Pay_Schedule->DayCount = Pay_DayCount;
 	Pay_Schedule->NotionalAmount = Pay_NotionalAMT;
+	Pay_Schedule->NWeekendDate = NPay_Weekend;
+	Pay_Schedule->WeekendList = Pay_Weekend;
+	Pay_Schedule->NRefHistory = Pay_NHistory;
+	Pay_Schedule->RefHistoryDate = Pay_HistoryRelDate;
+	Pay_Schedule->RefHistory = Pay_HistoryRate;
 
 	if (Pay_RefRateType != 0 && Pay_RefRateType != 2) Pay_Schedule->RefSwapFlag = 1;
 	Pay_Schedule->NSwapPayAnnual = Pay_SwapYearlyNPayment;
@@ -2744,6 +2853,18 @@ DLLEXPORT(long) IRSwap_Excel(
 							Rcv_NTermFX, Rcv_TermFX, Rcv_FX, Pay_NTermFX, Pay_TermFX, Pay_FX,
 							GreekFlag, ResultPrice, ResultRefRate, ResultCPN, ResultDF,
 							PV01, KeyRateRcvPV01, KeyRatePayPV01, PricingOnly);
+
+	free(Rcv_HistoryRelDate);
+	free(Pay_HistoryRelDate);
+
+	free(NRcv_Weekend);
+	for (i = 0; i < NRcvCF; i++) free(Rcv_Weekend[i]);
+	free(Rcv_Weekend);
+
+	free(NPay_Weekend);
+	for (i = 0; i < NPayCF; i++) free(Pay_Weekend[i]);
+	free(Pay_Weekend);
+
 
 	free(Rcv_ForwardStart_C);
 	free(Rcv_ForwardEnd_C);
