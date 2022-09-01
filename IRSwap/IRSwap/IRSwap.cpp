@@ -240,9 +240,9 @@ typedef struct schd_info {
 	long *NWeekendDate;			//  주말개수(길이 = NCF)
 	long** WeekendList;			//  주말 Array 리스트
 
-	long NRefHistory;
-	long* RefHistoryDate;
-	double* RefHistory;
+	long NRefHistory;			// 오버나이트 히스토리 개수
+	long* RefHistoryDate;		// 오버나이트 히스토리 상대날짜
+	double* RefHistory;			// 오버나이트 금리 히스토리
 
 } SCHD;
 
@@ -2698,7 +2698,7 @@ DLLEXPORT(long) IRSwap_Excel(
 	double* RcvRef_Term,			// Rcv Leg 레퍼런스 금리 Term Array
 	double* RcvRef_Rate,			// Rcv Leg 레퍼런스 금리 Rate Array
 	long NRcvCF,					// Rcv Leg CashFlow 개수
-	long* RcvCashFlowSchedule,		// Rcv Forward Start, End, 기산, 기말, 지급일
+	long* RcvCashFlowSchedule,		// Rcv Forward Start, End, 기산, 기말, 지급일 ExlDate
 
 	double* Rcv_Slope,				// Rcv Leg 변동금리 기울기 Array
 	double* Rcv_CPN,				// Rcv Leg 고정쿠폰 Array
@@ -2720,7 +2720,7 @@ DLLEXPORT(long) IRSwap_Excel(
 
 	double* PayRef_Rate,			// Pay Leg 할인 금리 Rate Array 
 	long NPayCF,					// Pay Leg CashFlow 개수
-	long* PayCashFlowSchedule,		// Pay Forward Start, End, 기산, 기말, 지급일
+	long* PayCashFlowSchedule,		// Pay Forward Start, End, 기산, 기말, 지급일 ExlDate
 	double* Pay_Slope,				// Pay Leg 변동금리 기울기 Array
 	double* Pay_CPN,				// Pay Leg 고정쿠폰 Array
 
@@ -2738,9 +2738,9 @@ DLLEXPORT(long) IRSwap_Excel(
 
 	long* NHolidays,				// Holiday 개수 [0] NRcvRef [1] NPayRef
 	long* Holidays,					// Holiday Exceltype
-	long* NHistory,
-	long* HistoryDateExl,
-	double* HistoryRate
+	long* NHistory,					// OverNight History 개수
+	long* HistoryDateExl,			// OverNight History ExlDate
+	double* HistoryRate				// OverNight Rate History
 )
 {
 	long i;
