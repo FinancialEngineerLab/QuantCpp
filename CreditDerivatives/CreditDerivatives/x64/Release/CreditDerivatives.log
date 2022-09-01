@@ -1,21 +1,22 @@
 ﻿  CreditDerivatives.cpp
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1448,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1448,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1444,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1445,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1473,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1473,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1469,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1470,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\Util.h(1488,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-     C:\Users\limds1557\git_daesun5\CreditDerivatives\x64\Release\CreditDerivatives.lib 라이브러리 및 C:\Users\limds1557\git_daesun5\CreditDerivatives\x64\Release\CreditDerivatives.exp 개체를 생성하고 있습니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1090,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1090,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1179,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1528,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1528,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1524,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1525,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1553,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1553,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1549,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1550,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\Util.h(1568,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+     C:\Users\KDB\github5\CreditDerivatives\x64\Release\CreditDerivatives.lib 라이브러리 및 C:\Users\KDB\github5\CreditDerivatives\x64\Release\CreditDerivatives.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
-C:\Users\limds1557\git_daesun5\CreditDerivatives\CreditDerivatives\CalcDate.h(372): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
+C:\Users\KDB\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(372): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
   All 36 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
-  CreditDerivatives.vcxproj -> C:\Users\limds1557\git_daesun5\CreditDerivatives\x64\Release\CreditDerivatives.dll
+  CreditDerivatives.vcxproj -> C:\Users\KDB\github5\CreditDerivatives\x64\Release\CreditDerivatives.dll

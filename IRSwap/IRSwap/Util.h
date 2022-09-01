@@ -973,10 +973,10 @@ double Calc_Forward_Rate_Fast(
 }
 
 double Calc_Forward_Rate_Daily(
-	double* TermArray, // 기간구조의 기간 Array [0.25,  0.5,   1.0, ....]
-	double* RateArray, // 기간구조의 Rate Array [0.008, 0.012, 0.014, ...]
-	long LengthArray,  // 기간구조 개수
-	double T1,         // Forward Start 시점
+	double* Term,
+	double* Rate,
+	long LengthArray,
+	double T1,
 	long* TimePos
 )
 {
@@ -987,42 +987,30 @@ double Calc_Forward_Rate_Daily(
 	double r1, r2;
 	double DF1, DF2, FRate;
 
-	if (T1 <= TermArray[0])
-	{
-		r1 = RateArray[0];
-	}
-	else if (T1 > TermArray[LengthArray - 1])
-	{
-		r1 = RateArray[LengthArray - 1];
-	}
+	if (T1 <= Term[0]) r1 = Rate[0];
+	else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
 	else
 	{
 		for (i = max(1, startidx); i < LengthArray; i++)
 		{
-			if (T1 < TermArray[i])
+			if (T1 < Term[i])
 			{
 				*TimePos = i - 1;
-				r1 = (RateArray[i] - RateArray[i - 1]) / (TermArray[i] - TermArray[i - 1]) * (T1 - TermArray[i - 1]) + RateArray[i - 1];
+				r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
 				break;
 			}
 		}
 	}
 
-	if (T2 <= TermArray[0])
-	{
-		r2 = RateArray[0];
-	}
-	else if (T2 > TermArray[LengthArray - 1])
-	{
-		r2 = RateArray[LengthArray - 1];
-	}
+	if (T2 <= Term[0]) r2 = Rate[0];
+	else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
 	else
 	{
 		for (i = max(1, startidx); i < LengthArray; i++)
 		{
-			if (T2 < TermArray[i])
+			if (T2 < Term[i])
 			{
-				r2 = (RateArray[i] - RateArray[i - 1]) / (TermArray[i] - TermArray[i - 1]) * (T2 - TermArray[i - 1]) + RateArray[i - 1];
+				r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
 				break;
 			}
 		}
@@ -1031,6 +1019,58 @@ double Calc_Forward_Rate_Daily(
 	DF1 = exp(-r1 * T1);
 	DF2 = exp(-r2 * T2);
 	FRate = 1.0 / dt * (DF1 / DF2 - 1.0);
+	return FRate;
+}
+
+double Calc_Forward_Rate_Daily(
+	double* Term,
+	double* Rate,
+	long LengthArray,
+	double T1,
+	long* TimePos,
+	long NHoliday
+)
+{
+	long i;
+	long startidx = *TimePos + 0;
+	double dt = 0.00273972602739726;
+	double T2 = T1 + ((double)(NHoliday + 1)) * dt;
+	double r1, r2;
+	double DeltaT = T2 - T1;
+	double DF1, DF2, FRate;
+
+	if (T1 <= Term[0]) r1 = Rate[0];
+	else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
+	else
+	{
+		for (i = max(1, startidx); i < LengthArray; i++)
+		{
+			if (T1 < Term[i])
+			{
+				*TimePos = i - 1;
+				r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
+				break;
+			}
+		}
+	}
+
+	if (T2 <= Term[0]) r2 = Rate[0];
+	else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
+	else
+	{
+		for (i = max(1, startidx); i < LengthArray; i++)
+		{
+			if (T2 < Term[i])
+			{
+				r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
+				break;
+			}
+		}
+	}
+
+	DF1 = exp(-r1 * T1);
+	DF2 = exp(-r2 * T2);
+	FRate = 1.0 / DeltaT * (DF1 / DF2 - 1.0);
 	return FRate;
 }
 

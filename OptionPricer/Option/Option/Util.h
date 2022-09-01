@@ -31,7 +31,7 @@
 
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
-double CalcDeterminant(double** mat, long order);
+double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
 long idum = -1;
 
 /////////////////////////////////////////////////
@@ -973,10 +973,10 @@ double Calc_Forward_Rate_Fast(
 }
 
 double Calc_Forward_Rate_Daily(
-	double* TermArray, // 기간구조의 기간 Array [0.25,  0.5,   1.0, ....]
-	double* RateArray, // 기간구조의 Rate Array [0.008, 0.012, 0.014, ...]
-	long LengthArray,  // 기간구조 개수
-	double T1,         // Forward Start 시점
+	double* Term,
+	double* Rate,
+	long LengthArray,
+	double T1,
 	long* TimePos
 )
 {
@@ -987,42 +987,30 @@ double Calc_Forward_Rate_Daily(
 	double r1, r2;
 	double DF1, DF2, FRate;
 
-	if (T1 <= TermArray[0])
-	{
-		r1 = RateArray[0];
-	}
-	else if (T1 > TermArray[LengthArray - 1])
-	{
-		r1 = RateArray[LengthArray - 1];
-	}
+	if (T1 <= Term[0]) r1 = Rate[0];
+	else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
 	else
 	{
 		for (i = max(1, startidx); i < LengthArray; i++)
 		{
-			if (T1 < TermArray[i])
+			if (T1 < Term[i])
 			{
 				*TimePos = i - 1;
-				r1 = (RateArray[i] - RateArray[i - 1]) / (TermArray[i] - TermArray[i - 1]) * (T1 - TermArray[i - 1]) + RateArray[i - 1];
+				r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
 				break;
 			}
 		}
 	}
 
-	if (T2 <= TermArray[0])
-	{
-		r2 = RateArray[0];
-	}
-	else if (T2 > TermArray[LengthArray - 1])
-	{
-		r2 = RateArray[LengthArray - 1];
-	}
+	if (T2 <= Term[0]) r2 = Rate[0];
+	else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
 	else
 	{
 		for (i = max(1, startidx); i < LengthArray; i++)
 		{
-			if (T2 < TermArray[i])
+			if (T2 < Term[i])
 			{
-				r2 = (RateArray[i] - RateArray[i - 1]) / (TermArray[i] - TermArray[i - 1]) * (T2 - TermArray[i - 1]) + RateArray[i - 1];
+				r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
 				break;
 			}
 		}
@@ -1031,6 +1019,58 @@ double Calc_Forward_Rate_Daily(
 	DF1 = exp(-r1 * T1);
 	DF2 = exp(-r2 * T2);
 	FRate = 1.0 / dt * (DF1 / DF2 - 1.0);
+	return FRate;
+}
+
+double Calc_Forward_Rate_Daily(
+	double* Term,
+	double* Rate,
+	long LengthArray,
+	double T1,
+	long* TimePos,
+	long NHoliday
+)
+{
+	long i;
+	long startidx = *TimePos + 0;
+	double dt = 0.00273972602739726;
+	double T2 = T1 + ((double)(NHoliday + 1)) * dt;
+	double r1, r2;
+	double DeltaT = T2 - T1;
+	double DF1, DF2, FRate;
+
+	if (T1 <= Term[0]) r1 = Rate[0];
+	else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
+	else
+	{
+		for (i = max(1, startidx); i < LengthArray; i++)
+		{
+			if (T1 < Term[i])
+			{
+				*TimePos = i - 1;
+				r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
+				break;
+			}
+		}
+	}
+
+	if (T2 <= Term[0]) r2 = Rate[0];
+	else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
+	else
+	{
+		for (i = max(1, startidx); i < LengthArray; i++)
+		{
+			if (T2 < Term[i])
+			{
+				r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
+				break;
+			}
+		}
+	}
+
+	DF1 = exp(-r1 * T1);
+	DF2 = exp(-r2 * T2);
+	FRate = 1.0 / DeltaT * (DF1 / DF2 - 1.0);
 	return FRate;
 }
 
@@ -1136,22 +1176,34 @@ DLLEXPORT(double) Calc_Forward_Rate(
 // the result is put in Y
 void MatrixInversion(double** A, long order, double** Y)
 {
+	long i, j, k, n;
+	// MinorMatrixList 추가 2022.08.30 임대선 미리 만들어두고 반복사용하기
+	double*** MinorMatrixList = (double***)malloc(sizeof(double**) * order);
+	for (i = 0; i < order; i++)
+	{
+		n = max(1, i);
+		MinorMatrixList[i] = (double**)malloc(sizeof(double*) * n);
+		for (j = 0; j < n; j++)
+		{
+			MinorMatrixList[i][j] = (double*)malloc(sizeof(double) * n);
+		}
+	}
 	// get the determinant of a
-	double det = 1.0 / CalcDeterminant(A, order);
+	double det = 1.0 / CalcDeterminant(A, order, MinorMatrixList);
 
 	// memory allocation
 	double* temp = new double[(order - 1) * (order - 1)];
 	double** minor = new double* [order - 1];
-	for (long i = 0; i < order - 1; i++)
+	for (i = 0; i < order - 1; i++)
 		minor[i] = temp + (i * (order - 1));
 
-	for (long j = 0; j < order; j++)
+	for (j = 0; j < order; j++)
 	{
-		for (long i = 0; i < order; i++)
+		for (i = 0; i < order; i++)
 		{
 			// get the co-factor (matrix) of A(j,i)
 			GetMinor(A, minor, j, i, order);
-			Y[i][j] = det * CalcDeterminant(minor, order - 1);
+			Y[i][j] = det * CalcDeterminant(minor, order - 1, MinorMatrixList);
 			if ((i + j) % 2 == 1)
 				Y[i][j] = -Y[i][j];
 		}
@@ -1160,6 +1212,17 @@ void MatrixInversion(double** A, long order, double** Y)
 	// release memory
 	delete[] temp;
 	delete[] minor;
+
+	for (i = 0; i < order; i++)
+	{
+		n = max(1, i);
+		for (j = 0; j < n; j++)
+		{
+			free(MinorMatrixList[i][j]);
+		}
+		free(MinorMatrixList[i]);
+	}
+	free(MinorMatrixList);
 }
 
 // calculate the cofactor of element (row,col)
@@ -1190,33 +1253,50 @@ long GetMinor(double** src, double** dest, long row, long col, long order)
 }
 
 // Calculate the determinant recursively.
-double CalcDeterminant(double** mat, long order)
+double CalcDeterminant(double** mat, long order, double*** MinorMatrixList)
 {
 
 	if (order == 1) return mat[0][0];
 	else if (order == 2) return mat[0][0] * mat[1][1] - mat[0][1] * mat[1][0];
 	else if (order == 3) return mat[0][0] * mat[1][1] * mat[2][2] + mat[0][1] * mat[1][2] * mat[2][0] + mat[0][2] * mat[1][0] * mat[2][1] - (mat[0][2] * mat[1][1] * mat[2][0] + mat[0][1] * mat[1][0] * mat[2][2] + mat[0][0] * mat[1][2] * mat[2][1]);
+	else if (order == 4)
+	{
+		double p1, p2, p3, p4, detA;
+		p1 = mat[0][0] * (mat[1][1] * mat[2][2] * mat[3][3] + mat[1][2] * mat[2][3] * mat[3][1] + mat[1][3] * mat[2][1] * mat[3][2] -
+			mat[1][3] * mat[2][2] * mat[3][1] - mat[1][2] * mat[2][1] * mat[3][3] - mat[1][1] * mat[2][3] * mat[3][2]);
 
+		p2 = -mat[1][0] * (mat[0][1] * mat[2][2] * mat[3][3] + mat[0][2] * mat[2][3] * mat[3][1] + mat[0][3] * mat[2][1] * mat[3][2] -
+			mat[0][3] * mat[2][2] * mat[3][1] - mat[0][2] * mat[2][1] * mat[3][3] - mat[0][1] * mat[2][3] * mat[3][2]);
+
+		p3 = mat[2][0] * (mat[0][1] * mat[1][2] * mat[3][3] + mat[0][2] * mat[1][3] * mat[3][1] + mat[0][3] * mat[1][1] * mat[3][2] -
+			mat[0][3] * mat[1][2] * mat[3][1] - mat[0][2] * mat[1][1] * mat[3][3] - mat[0][1] * mat[1][3] * mat[3][2]);
+
+		p4 = -mat[3][0] * (mat[0][1] * mat[1][2] * mat[2][3] + mat[0][2] * mat[1][3] * mat[2][1] + mat[0][3] * mat[1][1] * mat[2][2] -
+			mat[0][3] * mat[1][2] * mat[2][1] - mat[0][2] * mat[1][1] * mat[2][3] - mat[0][1] * mat[1][3] * mat[2][2]);
+		detA = p1 + p2 + p3 + p4;
+		return detA;
+	}
 	double det = 0;
 
 	double** minor;
-	minor = new double* [order - 1];
-	for (long i = 0; i < order - 1; i++)
-		minor[i] = new double[order - 1];
+	minor = MinorMatrixList[max(0, order - 1)];
+	//minor = new double* [order - 1];
+	//for (long i = 0; i < order - 1; i++)
+	//	minor[i] = new double[order - 1];
 
 	for (long i = 0; i < order; i++)
 	{
 		// get minor of element (0,i)
 		GetMinor(mat, minor, 0, i, order);
 		// the recusion is here!
-		det += (i % 2 == 1 ? -1.0 : 1.0) * mat[0][i] * CalcDeterminant(minor, order - 1);
+		det += (i % 2 == 1 ? -1.0 : 1.0) * mat[0][i] * CalcDeterminant(minor, order - 1, MinorMatrixList);
 
 	}
 
 	// release memory
-	for (long i = 0; i < order - 1; i++)
-		delete[] minor[i];
-	delete[] minor;
+	//for (long i = 0; i < order - 1; i++)
+	//	delete[] minor[i];
+	//delete[] minor;
 
 	return det;
 }
@@ -1635,3 +1715,70 @@ double CubicSpline(long nRate, double* Term, double* Rate, double TargetTerm)
 	free(CArray);
 	return y;
 }
+
+long Calibration_CubicSpline_Params(
+	long nRate,
+	double* Term,
+	double* Rate,
+	double* C_Array	// Out: 2차 계수 Param
+)
+{
+	long ResultCode = 1;
+
+	if (nRate < 4)
+	{
+		ResultCode = -1;
+		return ResultCode;
+	}
+
+	Calc_C(nRate, Term, Rate, C_Array);
+	return ResultCode;
+}
+
+double CubicInterpolation(long nRate, double* Term, double* Rate, double* C_Array, double TargetTerm)
+{
+	long i;
+	double a, b, d, y, hi, xp;
+
+	if (nRate < 4) return Interpolate_Linear(Term, Rate, nRate, TargetTerm);
+
+	if (Term[0] >= TargetTerm)
+	{
+		// Extrapolation
+		//hi = Term[1] - Term[0];
+		//xp = TargetTerm - Term[0];
+		//a = Rate[0];
+		//b = (Rate[1] - Rate[0])/ hi - hi * (2.0 * C_Array[0] + C_Array[1]) / 3.0;
+		//d = (C_Array[1] - C_Array[0]) / (3.0 * hi);
+		//y = a + b * xp + C_Array[0] * xp * xp + d * xp * xp * xp;
+		y = Rate[0];
+	}
+	else if (Term[nRate - 1] <= TargetTerm)
+	{
+		// Extrapolation
+		//hi = Term[nRate - 1] - Term[nRate - 2];
+		//xp = TargetTerm - Term[nRate - 2];
+		//a = Rate[nRate - 2];
+		//b = (Rate[nRate - 1] - Rate[nRate - 2]) / hi - hi * (2.0 * C_Array[nRate - 2] + C_Array[nRate - 1]) / 3.0;
+		//d = (C_Array[nRate - 1] - C_Array[nRate - 2]) / (3.0 * hi);
+		//y = a + b * xp + C_Array[nRate - 2] * xp * xp + d * xp * xp * xp;
+		y = Rate[nRate - 1];
+	}
+	else
+	{
+		for (i = 1; i < nRate; i++)
+		{
+			if (Term[i] > TargetTerm) {
+				hi = Term[i] - Term[i - 1];
+				xp = TargetTerm - Term[i - 1];
+				a = Rate[i - 1];
+				b = (Rate[i] - Rate[i - 1]) / hi - hi * (2.0 * C_Array[i - 1] + C_Array[i]) / 3.0;
+				d = (C_Array[i] - C_Array[i - 1]) / (3.0 * hi);
+				y = a + b * xp + C_Array[i - 1] * xp * xp + d * xp * xp * xp;
+				break;
+			}
+		}
+	}
+	return y;
+}
+

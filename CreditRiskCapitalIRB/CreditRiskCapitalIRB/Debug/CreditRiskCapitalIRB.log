@@ -1,21 +1,22 @@
 ﻿  CreditRiskCapitalIRB.cpp
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1050,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1050,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1448,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1448,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1444,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1445,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1473,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1473,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1469,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1470,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1488,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(163,9): warning C4101: 'EL' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(158,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(162,9): warning C4101: 'UnExpectedLoss' :참조되지 않은 지역 변수입니다.
-C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(372): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
-     C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.lib 라이브러리 및 C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.exp 개체를 생성하고 있습니다.
-  CreditRiskCapitalIRB.vcxproj -> C:\Users\limds1557\git_daesun5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.dll
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1090,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1090,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1179,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1528,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1528,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1524,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1525,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1553,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1553,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1549,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1550,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(1568,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(163,9): warning C4101: 'EL' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(158,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(162,9): warning C4101: 'UnExpectedLoss' :참조되지 않은 지역 변수입니다.
+C:\Users\KDB\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(372): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
+     C:\Users\KDB\github5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.lib 라이브러리 및 C:\Users\KDB\github5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.exp 개체를 생성하고 있습니다.
+  CreditRiskCapitalIRB.vcxproj -> C:\Users\KDB\github5\CreditRiskCapitalIRB\Debug\CreditRiskCapitalIRB.dll
