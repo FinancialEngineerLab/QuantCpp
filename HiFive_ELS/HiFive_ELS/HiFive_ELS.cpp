@@ -6,14 +6,12 @@
 #include "CalcDate.h"
 #include "Structure.h"
 #include "Util.h"
-
+#include <crtdbg.h>
 #ifndef DLLEXPORT(A) 
 #ifdef WIN32
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
-#include <crtdbg.h>
 #elif _WIN64
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
-#include <crtdbg.h>
 #elif __linux__
 #define DLLEXPORT(A) extern "C" A
 #elif __hpux
@@ -1706,7 +1704,8 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	char* Error
 )
 {
-	//_crtBreakAlloc = 222;
+	//_crtBreakAlloc = 91;
+
 	long i,j,k;
 
 	long ResultCode;

@@ -7,7 +7,7 @@
 #endif
 
 #include "Structure.h"
-
+#include <crtdbg.h>
 double SABRIV(double alpha, double beta, double v, double rho, double Fut, double K, double T)
 {
 	long i;
@@ -55,7 +55,9 @@ void make_Jacov_SABR(
 	double* ParityVolNew,
 	double* VolNew,
 	double Beta,
-	double Futures
+	long NTermFutures, 
+	double* TermFuturesArray, 
+	double* FuturesArray
 )
 {
 	long i;
@@ -67,6 +69,7 @@ void make_Jacov_SABR(
 	double Pdn = 0.0;
 	double ErrorUp = 0.0;
 	double ErrorDn = 0.0;
+	double Futures = 1.0;
 
 	long temp;
 
@@ -114,7 +117,7 @@ void make_Jacov_SABR(
 				ParamsUp[j] = Params[j] + dparam_up;
 				ParamsDn[j] = Params[j] - dparam_up;
 			}
-
+			Futures = Interpolate_Linear(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
 			Pup = SABRIV(Beta, ParamsUp, Futures, ParityVolNew[i], TermVolNew[i]);
 			ErrorUp = VolNew[i] - Pup;
 			Pdn = SABRIV(Beta, ParamsDn, Futures, ParityVolNew[i], TermVolNew[i]);
@@ -133,27 +136,31 @@ void make_Residual_SABR(
 	double* TermVolNew,
 	double* ParityVolNew,
 	double* VolNew,
-	double Futures,
+	long NTermFutures,
+	double* TermFuturesArray,
+	double* FuturesArray,
 	double Beta,
-	double& absErrorSum,
+	double& ErrorSquareSum,
 	double* SABRVolNew
 )
 {
 	long i;
 	double s = 0.0;
+	double Futures = 1.0;
 	for (i = 0; i < NResidual; i++)
 	{
+		Futures = Interpolate_Linear(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
 		SABRVolNew[i] = SABRIV( Beta, Params, Futures, ParityVolNew[i], TermVolNew[i]);
 	}
 	for (i = 0; i < NResidual; i++) ResidualArray[i] = VolNew[i] - SABRVolNew[i];
-	for (i = 0; i < NResidual; i++) s += fabs(ResidualArray[i]);
-	absErrorSum = s;
+	for (i = 0; i < NResidual; i++) s += (ResidualArray[i]* ResidualArray[i]);
+	ErrorSquareSum = s;
 }
 
 void NextLambda(double ErrorSquareSum, double PrevErrorSquareSum, double* lambda, long& BreakFlag)
 {
 	double LambdaMax = 1000000;
-	double LambdaMin = 0.0000001;
+	double LambdaMin = 0.00001;
 
 	if (ErrorSquareSum < PrevErrorSquareSum) *lambda *= 0.1;
 	else *lambda *= 10.0;
@@ -179,7 +186,7 @@ void Levenberg_Marquardt_SABR(long NParams, long NResidual, double* NextParams, 
 	XprimeDotX(Jacov, Shape_J, JT_J);
 
 	// J'J + mu * diag(J'J)     Shape = m * m
-	for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;// *JT_J[i][i];
+	for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;//*JT_J[i][i];
 
 	// inv(J'J + mu * diag(J'J))
 	long Shape_Inv_JT_J[2] = { m,m };
@@ -218,7 +225,9 @@ void Levenberg_Marquardt_SABR(
 	double* TermVolNew,
 	double* ParityVolNew,
 	double* VolNew,
-	double Futures,
+	long NTermFutures, 
+	double* TermFuturesArray, 
+	double* FuturesArray,
 	double* SABRVolNew,
 	double Beta
 
@@ -228,39 +237,36 @@ void Levenberg_Marquardt_SABR(
 	long n;
 	long BreakFlag = 0;
 	long Levenberg = 1;
-	double StopCondition = 0.0001;
+	double StopCondition = 0.00001;
 
-	double absErrorSum = 100000.0;
-	double PrevAbsErrorSum = 0.0;
-	double ParamSum = 10000.0;
+	double ErrorSquareSum = 100000.0;
+	double PrevErrorSquareSum = 0.0;
+	double ParamSum = 0.0;
 	double lambda[1] = { 1.00 };
 	double* NextParams = make_array(NParams);
 	double** JT_J = make_array(NParams, NParams);
 	double** Inverse_JT_J = make_array(NParams, NParams);
 	double** JT_Res = make_array(NParams, 1);
 	double** ResultMatrix = make_array(NParams, 1);
-
+	double FirstErrorSquare = 1.0;
 	lambda[0] = 0.0;
 	for (n = 0; n < 50; n++)
 	{
-		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, Futures);
+		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, NTermFutures, TermFuturesArray, FuturesArray);
 
-		//Print_Array(TempJacovMatrix, NResidual, NParams);
-		//printf("\n");
+		make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, Beta, ErrorSquareSum, SABRVolNew);
 
-		make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, Futures, Beta, absErrorSum, SABRVolNew);
+		if (n == 0) FirstErrorSquare = ErrorSquareSum + 0.0;
 
-		//Print_Array(ResidualArray, NResidual);
-		//printf("\n");
-
-		if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+		if (n >= 1) NextLambda(ErrorSquareSum, PrevErrorSquareSum, lambda, BreakFlag);
 
 		Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
 		for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
 		if (ParamSum < StopCondition && n > 10) break;
+		if (ErrorSquareSum / FirstErrorSquare < 0.001) break;
 
-		PrevAbsErrorSum = absErrorSum;
+		PrevErrorSquareSum = ErrorSquareSum;
 	}
 
 	free(NextParams);
@@ -275,7 +281,7 @@ void Levenberg_Marquardt_SABR(
 
 }
 
-void main2(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, double* Vol, double Futures, double Beta, double* Params, double* ResultLocVol)
+void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, double* Vol, long NTermFutures, double* TermFuturesArray, double* FuturesArray, double Beta, double* Params, double* ResultLocVol)
 {
 	long i;
 	long j;
@@ -306,7 +312,7 @@ void main2(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, d
 		ParamsDn[i] = Params[i];
 	}
 
-	Levenberg_Marquardt_SABR(nparams, TargetParams, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Futures, SABRVolNew, Beta);
+	Levenberg_Marquardt_SABR(nparams, TargetParams, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, SABRVolNew, Beta);
 	for (i = 0; i < NTermVol * NParityVol; i++) ResultLocVol[i] = SABRVolNew[i];
 	for (i = 0; i < nparams; i++) Params[i] = TargetParams[i];
 	free(TermVolNew);
@@ -318,11 +324,24 @@ void main2(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, d
 	free(VolNew);
 }
 
-int main()
+int main2()
 {
 	long i;
 	long j;
 	long k;
+
+	double r, d;
+
+	long N_Rf = 2;
+	double RfTerm[2] = { 1.0, 2.0 };
+	double RfRate[2] = { 0.02, 0.02 };
+
+	long N_Div = 2;
+	double DivTerm[2] = { 1.0, 2.0 };
+	double DivRate[2] = { 0.02, 0.02 };
+
+	curveinfo RfCurve(N_Rf, RfTerm, RfRate);
+	curveinfo DivCurve(N_Div, DivTerm, DivRate);
 
 	const long NTermVol = 10;
 	double TermVol[NTermVol] = { 0.33, 0.67, 1.0, 1.33, 1.67, 2.0, 2.33, 2.67, 3.0 , 3.33 };
@@ -341,6 +360,16 @@ int main()
 							0.1098400, 	0.1083000, 	0.1213600, 	0.1260800, 	0.1312800, 	0.1370000, 	0.1428800, 	0.1480200, 	0.1520600, 	0.1551400,
 							0.1148200, 	0.1139000, 	0.1179300, 	0.1247500, 	0.1310300, 	0.1354900, 	0.1418000, 	0.1477500, 	0.1526000, 	0.1559700};
 	double ResultImpliedVolReshaped[NVol] = { 0.0 };
+
+	long NTermFutures = NTermVol;
+	double* TermFuturesArray = TermVol;
+	double* FuturesArray = (double*)malloc(sizeof(double) * NTermFutures);
+	for (i = 0; i < NTermFutures; i++)
+	{
+		r = Interpolate_Linear(RfTerm, RfRate, N_Rf, TermFuturesArray[i]);
+		d = Interpolate_Linear(DivTerm, DivRate, N_Div, TermFuturesArray[i]);
+		FuturesArray[i] = exp(r - d);
+	}
 
 	double alpha, v, rho, Fut, Beta;
 	double ResultParams[3] = { 0., };
@@ -372,7 +401,7 @@ int main()
 			VolArray[k] = Vol[i + j * NTermVol];
 			k += 1;
 		}
-		main2(1, TermVol + i, NParityVol, ParityVol, VolArray, Fut, Beta, TermParams[i], TempVolResult);
+		SABRCalibration(1, TermVol + i, NParityVol, ParityVol, VolArray, NTermFutures, TermFuturesArray, FuturesArray, Beta, TermParams[i], TempVolResult);
 
 		for (j = 0; j < NParityVol; j++) ResultImVol[j][i] = TempVolResult[j];
 		
@@ -393,17 +422,6 @@ int main()
 		}
 	}
 
-	long N_Rf = 2;
-	double RfTerm[2] = { 1.0, 2.0 };
-	double RfRate[2] = { 0.02, 0.02 };
-
-	long N_Div = 2;
-	double DivTerm[2] = { 1.0, 2.0 };
-	double DivRate[2] = { 0.02, 0.02 };
-
-	curveinfo RfCurve(N_Rf, RfTerm, RfRate);
-	curveinfo DivCurve(N_Div, DivTerm, DivRate);
-
 	volinfo VolMatrix(NParityVol, ParityVol, NTermVol, TermVol, ResultImpliedVolReshaped);
 	
 	VolMatrix.set_localvol(&RfCurve, &DivCurve);
@@ -416,4 +434,13 @@ int main()
 	for (i = 0; i < NParityVol; i++) free(ResultImVol[i]);
 	free(ResultImVol);
 	free(TempVolResult);
+	free(FuturesArray);
+
+	return 1;
+}
+
+int main()
+{
+	main2();
+	_CrtDumpMemoryLeaks();
 }
