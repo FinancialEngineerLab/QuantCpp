@@ -324,7 +324,28 @@ void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* Pa
 	free(VolNew);
 }
 
-int main2()
+long SABR_Vol(
+	long N_Rf,
+	double *RfTerm,
+	double *RfRate,
+	long N_Div,
+	double *DivTerm,
+
+	double *DivRate,
+	long NTermVol,
+	double *TermVol,
+	long NParityVol,
+	double *ParityVol,
+	
+	double *Vol,
+	long CalcLocalVolFlag,
+	double Beta,
+	double *ResultImpliedVolReshaped,
+	double *ResultLocalVolReshaped,
+
+	double *ResultParams,
+	double* Futures
+)
 {
 	long i;
 	long j;
@@ -332,34 +353,19 @@ int main2()
 
 	double r, d;
 
-	long N_Rf = 2;
-	double RfTerm[2] = { 1.0, 2.0 };
-	double RfRate[2] = { 0.02, 0.02 };
-
-	long N_Div = 2;
-	double DivTerm[2] = { 1.0, 2.0 };
-	double DivRate[2] = { 0.02, 0.02 };
-
 	curveinfo RfCurve(N_Rf, RfTerm, RfRate);
 	curveinfo DivCurve(N_Div, DivTerm, DivRate);
 
-	const long NTermVol = 10;
-	double TermVol[NTermVol] = { 0.33, 0.67, 1.0, 1.33, 1.67, 2.0, 2.33, 2.67, 3.0 , 3.33 };
-
-	const long NParityVol = 9;
-	double ParityVol[NParityVol] = { 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3 };
-
-	const long NVol = NTermVol * NParityVol;
-	double Vol[NVol] = {    0.3995300,	0.3543100, 	0.3410300, 	0.3120800,  0.2920000,  0.2783500 	,0.2685600 	,0.2584700 	,0.2477000 	,0.2433400,
-							0.3587200, 	0.3049600, 	0.2950800, 	0.2692700, 	0.2513900, 	0.2385400, 	0.2305500, 	0.2237300, 	0.2153000, 	0.2125000,
-							0.2974900, 	0.2594500, 	0.2474600, 	0.2300200, 	0.2175900, 	0.2072700, 	0.2020400, 	0.1983300, 	0.1936200, 	0.1922400,
-							0.2413000, 	0.2179900, 	0.2082200, 	0.1979000, 	0.1906900, 	0.1839800, 	0.1819600, 	0.1807300, 	0.1782800, 	0.1783200,
-							0.1858300, 	0.1775800, 	0.1708200, 	0.1696900, 	0.1689100, 	0.1661900, 	0.1671200, 	0.1680300, 	0.1674100, 	0.1688500,
-							0.1340200, 	0.1410400, 	0.1426700, 	0.1474900, 	0.1510600, 	0.1518200, 	0.1553700, 	0.1582300, 	0.1591600, 	0.1616100,
-							0.1032700, 	0.1141300, 	0.1281000, 	0.1334600, 	0.1378600, 	0.1417300, 	0.1468200, 	0.1510900, 	0.1538600, 	0.1567300,
-							0.1098400, 	0.1083000, 	0.1213600, 	0.1260800, 	0.1312800, 	0.1370000, 	0.1428800, 	0.1480200, 	0.1520600, 	0.1551400,
-							0.1148200, 	0.1139000, 	0.1179300, 	0.1247500, 	0.1310300, 	0.1354900, 	0.1418000, 	0.1477500, 	0.1526000, 	0.1559700};
-	double ResultImpliedVolReshaped[NVol] = { 0.0 };
+	long NVol = NTermVol * NParityVol;
+//	double Vol[NVol] = {    0.3995300,	0.3543100, 	0.3410300, 	0.3120800,  0.2920000,  0.2783500 	,0.2685600 	,0.2584700 	,0.2477000 	,0.2433400,
+//							0.3587200, 	0.3049600, 	0.2950800, 	0.2692700, 	0.2513900, 	0.2385400, 	0.2305500, 	0.2237300, 	0.2153000, 	0.2125000,
+//							0.2974900, 	0.2594500, 	0.2474600, 	0.2300200, 	0.2175900, 	0.2072700, 	0.2020400, 	0.1983300, 	0.1936200, 	0.1922400,
+//							0.2413000, 	0.2179900, 	0.2082200, 	0.1979000, 	0.1906900, 	0.1839800, 	0.1819600, 	0.1807300, 	0.1782800, 	0.1783200,
+//							0.1858300, 	0.1775800, 	0.1708200, 	0.1696900, 	0.1689100, 	0.1661900, 	0.1671200, 	0.1680300, 	0.1674100, 	0.1688500,
+//							0.1340200, 	0.1410400, 	0.1426700, 	0.1474900, 	0.1510600, 	0.1518200, 	0.1553700, 	0.1582300, 	0.1591600, 	0.1616100,
+//							0.1032700, 	0.1141300, 	0.1281000, 	0.1334600, 	0.1378600, 	0.1417300, 	0.1468200, 	0.1510900, 	0.1538600, 	0.1567300,
+//							0.1098400, 	0.1083000, 	0.1213600, 	0.1260800, 	0.1312800, 	0.1370000, 	0.1428800, 	0.1480200, 	0.1520600, 	0.1551400,
+//							0.1148200, 	0.1139000, 	0.1179300, 	0.1247500, 	0.1310300, 	0.1354900, 	0.1418000, 	0.1477500, 	0.1526000, 	0.1559700};
 
 	long NTermFutures = NTermVol;
 	double* TermFuturesArray = TermVol;
@@ -369,27 +375,31 @@ int main2()
 		r = Interpolate_Linear(RfTerm, RfRate, N_Rf, TermFuturesArray[i]);
 		d = Interpolate_Linear(DivTerm, DivRate, N_Div, TermFuturesArray[i]);
 		FuturesArray[i] = exp(r - d);
+		Futures[i] = FuturesArray[i];
 	}
 
-	double alpha, v, rho, Fut, Beta;
-	double ResultParams[3] = { 0., };
+	double alpha = 0.15;	
+	double v = 0.25;
+	double rho = -0.05; 
+
+	//double ResultParams[3] = { 0., };
 	
-	double** TermParams = (double**)malloc(sizeof(double*) * NTermVol);
-	for (i = 0; i < NTermVol; i++) TermParams[i] = (double*)malloc(sizeof(double) * 4);
+	double** TermParams = make_array(NTermVol, 4);
+	double** ResultImVol = make_array(NParityVol, NTermVol);
+
+	//double** TermParams = (double**)malloc(sizeof(double*) * NTermVol);
+	//for (i = 0; i < NTermVol; i++) TermParams[i] = (double*)malloc(sizeof(double) * 4);
 
 	double* VolArray = (double*)malloc(sizeof(double) *NParityVol);
-	double** ResultImVol = (double**)malloc(sizeof(double*) * NParityVol);
-	for (i = 0; i < NParityVol; i++) ResultImVol[i] = (double*)malloc(sizeof(double) * NTermVol);
+	//double** ResultImVol = (double**)malloc(sizeof(double*) * NParityVol);
+	//for (i = 0; i < NParityVol; i++) ResultImVol[i] = (double*)malloc(sizeof(double) * NTermVol);
 	double* TempVolResult = (double*)malloc(sizeof(double) * NParityVol);
 
 	for (i = 0; i < NTermVol; i++) TermParams[i][3] = TermVol[i];
 
 	for (i = 0; i < NTermVol; i++)
 	{
-		alpha = 0.15;
-		v = 0.25;
-		rho = -0.05;
-		Fut = 1.0;
+
 		TermParams[i][0] = alpha;
 		TermParams[i][1] = v;
 		TermParams[i][2] = rho;
@@ -404,13 +414,12 @@ int main2()
 		SABRCalibration(1, TermVol + i, NParityVol, ParityVol, VolArray, NTermFutures, TermFuturesArray, FuturesArray, Beta, TermParams[i], TempVolResult);
 
 		for (j = 0; j < NParityVol; j++) ResultImVol[j][i] = TempVolResult[j];
-		
 	}
 
-	printf("\nSABR Implied Volatility\n");
-	Print_Array(ResultImVol, NParityVol, NTermVol);
-	printf("\n\n Alpha,      Vega,      Rho  ,  Term \n");
-	Print_Array(TermParams, NTermVol, 4);
+	//printf("\nSABR Implied Volatility\n");
+	//Print_Array(ResultImVol, NParityVol, NTermVol);
+	//printf("\n\n Alpha,      Vega,      Rho  ,  Term \n");
+	//Print_Array(TermParams, NTermVol, 4);
 
 	k = 0;
 	for (i = 0; i < NParityVol; i++)
@@ -423,10 +432,31 @@ int main2()
 	}
 
 	volinfo VolMatrix(NParityVol, ParityVol, NTermVol, TermVol, ResultImpliedVolReshaped);
-	
-	VolMatrix.set_localvol(&RfCurve, &DivCurve);
-	printf("\n\nSABR Local Volatility\n\n");
-	Print_Array(VolMatrix.LocalVolMat, NParityVol, NTermVol);
+	if (CalcLocalVolFlag != 0)
+	{
+		VolMatrix.set_localvol(&RfCurve, &DivCurve);
+		//printf("\n\nSABR Local Volatility\n\n");
+		//Print_Array(VolMatrix.LocalVolMat, NParityVol, NTermVol);
+		k = 0;
+		for (i = 0; i < NParityVol; i++)
+		{
+			for (j = 0; j < NTermVol; j++)
+			{
+				ResultLocalVolReshaped[k]=VolMatrix.LocalVolMat[i][j];
+				k += 1;
+			}
+		}
+	}
+
+	k = 0;
+	for (i = 0; i < NTermVol; i++)
+	{
+		for (j = 0; j < 3; j++)
+		{
+			ResultParams[k] = TermParams[i][j];
+			k += 1;
+		}
+	}
 
 	for (i = 0; i < NTermVol; i++) free(TermParams[i]);
 	free(TermParams);
@@ -439,8 +469,39 @@ int main2()
 	return 1;
 }
 
-int main()
+DLLEXPORT(long) Excel_SABR_Vol(
+	long N_Rf,
+	double* RfTerm,
+	double* RfRate,
+	long N_Div,
+	double* DivTerm,
+
+	double* DivRate,
+	long NTermVol,
+	double* TermVol,
+	long NParityVol,
+	double* ParityVol,
+
+	double* Vol,
+	long CalcLocalVolFlag,
+	double Beta,
+	double* ResultImpliedVolReshaped,
+	double* ResultLocalVolReshaped,
+
+	double* ResultParams,
+	double* Futures
+)
 {
-	main2();
+	long i, j;
+	long ResultCode = 0;
+
+	ResultCode = SABR_Vol(
+		N_Rf, RfTerm, RfRate, N_Div, DivTerm,
+		DivRate, NTermVol, TermVol, NParityVol, ParityVol,
+		Vol, CalcLocalVolFlag,Beta, ResultImpliedVolReshaped, ResultLocalVolReshaped, 
+		ResultParams, Futures
+	);
+
 	_CrtDumpMemoryLeaks();
+	return ResultCode;
 }
