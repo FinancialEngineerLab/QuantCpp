@@ -4,9 +4,24 @@
 #include <string.h>
 
 #include "CalcDate.h"
-#include "Structure.h"
+
+#ifndef UTILITY
 #include "Util.h"
+#endif
+
+#ifndef STRUCTURE
+#include "Structure.h"
+#endif
+
+#ifndef NULL
+#define NULL 0
+#endif
+
+#include "SABR.h"
+
+
 #include <crtdbg.h>
+
 #ifndef DLLEXPORT(A) 
 #ifdef WIN32
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
@@ -743,7 +758,6 @@ double Pricing_HiFive_MC(
 	Cholesky_Matrix = Cholesky_Decomposition(info_simul.correlation, info_simul.nstock);
 
 	double temp = 0.0;
-	if (pricingonly == 1) randnorm(0);
 
 	for (i = 0; i < info_simul.nsimul; i++)
 	{
@@ -1564,7 +1578,7 @@ long Preprocessing_HiFive_MC_Excel(
 		nparity += NParityVol[i];
 		nterm_vol += NTermVol[i];
 		nvol += NParityVol[i] * NTermVol[i];
-		if (ImVolLocalVolFlag[i] == 0)
+		if (ImVolLocalVolFlag[i] == 0 && (NParityVol[i] > 3 && NTermVol[i] > 3))
 		{
 			(VolMatrixList + i)->set_localvol((rf_curves + i), (div_curves + i), 2.0, 0.001);
 			for (j = 0; j < NParityVol[i]; j++)
@@ -1696,7 +1710,7 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	double* TermVol,				// 기초자산별 Volatility Term Array -> append[VolTerm1, VolTerm2, VolTerm3 ...]
 
 	double* Vol,					// 기초자산별 Volatility Array -> append[ReshapedVol1, ReshapedVol2, ReshapedVol3, ReshapedVol4 .....]
-	double* ResultPrice,			// 결과가격 및 델타감마베가 Shape = (1 + NStock * 3 , )
+	double* ResultPrice,			// 결과가격 및 델타감마베가, SABR Parameter Shape = (1 + NStock * 3 + sum(NTermVol)*3 )
 	double* AutocallProb,			// 조기상환 확률 및 조기상환 Payoff -> Shape = (NEvaluate * 2, )
 	double* CPNProb,				// 쿠폰 확률 및 쿠폰 -> Shape = (NCPN * 2, )
 	double* ResultLocalVol,			// LocalVolatility 결과값
@@ -1758,7 +1772,85 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	double* Term_Rf_Curve = TermRate + NTerm[0];
 	double* Rate_Rf_Curve = Rate + NTerm[0];
 
-	
+	////////////////////////////
+	// SABR Imvol Calibration //
+	////////////////////////////
+
+	long s_rf, s_div, s_parity,s_termvol, s_vol;
+	long CalcLocalVolFlag = 0; // 로컬볼은 나중에계산
+	long N_Rf;
+	double* RfTerm;
+	double* RfRate;
+	long N_Div;
+	double* DivTerm;
+	double* DivRate;
+	long NParityforSABR;
+	double *ParityforSABR;
+	long NTermforSABR;
+	double *TermforSABR;
+	double *VolforSABR;
+	double SABRBeta;
+	s_rf = 0;
+	s_div = 0;
+	s_parity = 0;
+	s_termvol = 0;
+	s_vol = 0;
+	double* ResultSABRParams = ResultPrice + NStock * 3 + 1;
+	for (i = 0; i < NStock; i++)
+	{
+		N_Rf = N_Rf_Curve[i];
+		RfTerm = Term_Rf_Curve + s_rf;
+		RfRate = Rate_Rf_Curve + s_rf;
+		N_Div = 0;
+		if (DivFlag[i] != 2)
+		{
+			N_Div = NDivTerm[i];
+			DivTerm = TermDiv + s_div;
+			DivRate = Div + s_div;
+		}
+		else
+		{
+			N_Div = 0;
+			DivTerm = NULL;
+			DivRate = NULL;
+		}
+		NTermforSABR = NTermVol[i];
+		TermforSABR = TermVol + s_termvol;
+		NParityforSABR = NParityVol[i];
+		ParityforSABR = ParityVol + s_parity;
+		VolforSABR = Vol + s_vol;
+
+		if (ImVolLocalVolFlag[i] == 2) SABRBeta = 1.0;
+		else SABRBeta = 0.5;
+
+		if (ImVolLocalVolFlag[i] == 2 || ImVolLocalVolFlag[i] == 3)
+		{
+			double* ResultParams = (double*)calloc(NTermforSABR * 4, sizeof(double));
+			double* Futures = (double*)malloc(sizeof(double) * NTermforSABR);
+			double* TempVol = (double*)malloc(sizeof(double) * NTermforSABR * NParityforSABR);
+			if (NParityVol[i] >= 4 && NTermVol[i] >= 4)
+			{
+				ImVolLocalVolFlag[i] = 0;
+				ResultCode = SABR_Vol(N_Rf, RfTerm, RfRate, N_Div, DivTerm,
+					DivRate, NTermforSABR, TermforSABR, NParityforSABR, ParityforSABR,
+					VolforSABR, CalcLocalVolFlag, SABRBeta, VolforSABR, TempVol, 
+					ResultParams, Futures);
+				for (j = 0; j < NTermforSABR*3; j++) ResultSABRParams[j] = ResultParams[j];
+			}
+			free(ResultParams);
+			free(Futures);
+			free(TempVol);
+		}
+		s_rf += N_Rf_Curve[i];
+		s_div += NDivTerm[i];
+		s_parity += NParityVol[i];
+		s_termvol += NTermVol[i];
+		s_vol += NParityVol[i] * NTermVol[i];
+		ResultSABRParams += NTermforSABR * 3;
+	}
+
+
+
 	/////////////
 	// 날짜 다 Ctype으로 바꾸기
 	/////////////
@@ -1805,9 +1897,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 
 	long MaxSimulDays = DayCountAtoB(PricingDate_Ctype, PayDate_Ctype[NEvaluate - 1]) + 1;
 	double*** FixedRandn = (double***)malloc(sizeof(double**) * NSimul);			// 11
+	randnorm(0);
 	if (GreekFlag != 0)
 	{
-		randnorm(0);
 		for (i = 0; i < NSimul; i++)
 		{
 			FixedRandn[i] = (double**)malloc(sizeof(double*) * MaxSimulDays);
@@ -1838,7 +1930,7 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 												VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
 												TermVol, Vol, ResultPrice, AutocallProb, CPNProb,
 												ResultLocalVol, ParityVol, FixedRandn);
-
+	
 	long* nvolsum = (long*)malloc(sizeof(long) * (NStock + 1));										// 12
 	nvolsum[0] = 0;
 	for (i = 1; i < NStock + 1; i++) nvolsum[i] = nvolsum[i - 1] + NParityVol[i - 1] * NTermVol[i - 1];

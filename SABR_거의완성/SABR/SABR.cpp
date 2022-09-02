@@ -357,15 +357,6 @@ long SABR_Vol(
 	curveinfo DivCurve(N_Div, DivTerm, DivRate);
 
 	long NVol = NTermVol * NParityVol;
-//	double Vol[NVol] = {    0.3995300,	0.3543100, 	0.3410300, 	0.3120800,  0.2920000,  0.2783500 	,0.2685600 	,0.2584700 	,0.2477000 	,0.2433400,
-//							0.3587200, 	0.3049600, 	0.2950800, 	0.2692700, 	0.2513900, 	0.2385400, 	0.2305500, 	0.2237300, 	0.2153000, 	0.2125000,
-//							0.2974900, 	0.2594500, 	0.2474600, 	0.2300200, 	0.2175900, 	0.2072700, 	0.2020400, 	0.1983300, 	0.1936200, 	0.1922400,
-//							0.2413000, 	0.2179900, 	0.2082200, 	0.1979000, 	0.1906900, 	0.1839800, 	0.1819600, 	0.1807300, 	0.1782800, 	0.1783200,
-//							0.1858300, 	0.1775800, 	0.1708200, 	0.1696900, 	0.1689100, 	0.1661900, 	0.1671200, 	0.1680300, 	0.1674100, 	0.1688500,
-//							0.1340200, 	0.1410400, 	0.1426700, 	0.1474900, 	0.1510600, 	0.1518200, 	0.1553700, 	0.1582300, 	0.1591600, 	0.1616100,
-//							0.1032700, 	0.1141300, 	0.1281000, 	0.1334600, 	0.1378600, 	0.1417300, 	0.1468200, 	0.1510900, 	0.1538600, 	0.1567300,
-//							0.1098400, 	0.1083000, 	0.1213600, 	0.1260800, 	0.1312800, 	0.1370000, 	0.1428800, 	0.1480200, 	0.1520600, 	0.1551400,
-//							0.1148200, 	0.1139000, 	0.1179300, 	0.1247500, 	0.1310300, 	0.1354900, 	0.1418000, 	0.1477500, 	0.1526000, 	0.1559700};
 
 	long NTermFutures = NTermVol;
 	double* TermFuturesArray = TermVol;
@@ -381,21 +372,12 @@ long SABR_Vol(
 	double alpha = 0.15;	
 	double v = 0.25;
 	double rho = -0.05; 
-
-	//double ResultParams[3] = { 0., };
 	
 	double** TermParams = make_array(NTermVol, 4);
 	double** ResultImVol = make_array(NParityVol, NTermVol);
 
-	//double** TermParams = (double**)malloc(sizeof(double*) * NTermVol);
-	//for (i = 0; i < NTermVol; i++) TermParams[i] = (double*)malloc(sizeof(double) * 4);
-
 	double* VolArray = (double*)malloc(sizeof(double) *NParityVol);
-	//double** ResultImVol = (double**)malloc(sizeof(double*) * NParityVol);
-	//for (i = 0; i < NParityVol; i++) ResultImVol[i] = (double*)malloc(sizeof(double) * NTermVol);
 	double* TempVolResult = (double*)malloc(sizeof(double) * NParityVol);
-
-	for (i = 0; i < NTermVol; i++) TermParams[i][3] = TermVol[i];
 
 	for (i = 0; i < NTermVol; i++)
 	{
@@ -403,8 +385,7 @@ long SABR_Vol(
 		TermParams[i][0] = alpha;
 		TermParams[i][1] = v;
 		TermParams[i][2] = rho;
-		Beta = 1.0;
-
+		TermParams[i][3] = TermVol[i];
 		k = 0;
 		for (j = 0; j < NParityVol; j++)
 		{
@@ -415,11 +396,6 @@ long SABR_Vol(
 
 		for (j = 0; j < NParityVol; j++) ResultImVol[j][i] = TempVolResult[j];
 	}
-
-	//printf("\nSABR Implied Volatility\n");
-	//Print_Array(ResultImVol, NParityVol, NTermVol);
-	//printf("\n\n Alpha,      Vega,      Rho  ,  Term \n");
-	//Print_Array(TermParams, NTermVol, 4);
 
 	k = 0;
 	for (i = 0; i < NParityVol; i++)
@@ -435,8 +411,6 @@ long SABR_Vol(
 	if (CalcLocalVolFlag != 0)
 	{
 		VolMatrix.set_localvol(&RfCurve, &DivCurve);
-		//printf("\n\nSABR Local Volatility\n\n");
-		//Print_Array(VolMatrix.LocalVolMat, NParityVol, NTermVol);
 		k = 0;
 		for (i = 0; i < NParityVol; i++)
 		{
@@ -470,26 +444,26 @@ long SABR_Vol(
 }
 
 DLLEXPORT(long) Excel_SABR_Vol(
-	long N_Rf,
-	double* RfTerm,
-	double* RfRate,
-	long N_Div,
-	double* DivTerm,
+	long N_Rf,							// Risk Free Term 개수
+	double* RfTerm,						// Risk Free Term
+	double* RfRate,						// Risk Free Rate
+	long N_Div,							// Dividend Term 개수
+	double* DivTerm,					// Dividend Term 
 
-	double* DivRate,
-	long NTermVol,
-	double* TermVol,
-	long NParityVol,
-	double* ParityVol,
+	double* DivRate,					// Dividend Rate
+	long NTermVol,						// Implied Vol Surface의 Tenor 개수
+	double* TermVol,					// Implied Vol Surface의 Tenor
+	long NParityVol,					// Implied Vol Surface의 Moneyness 개수
+	double* ParityVol,					// Implied Vol Surface의 Moneyness
 
-	double* Vol,
-	long CalcLocalVolFlag,
-	double Beta,
-	double* ResultImpliedVolReshaped,
-	double* ResultLocalVolReshaped,
+	double* Vol,						// Implied Vol Surface.Reshape(0)
+	long CalcLocalVolFlag,				// Local Volatility 산출여부
+	double Beta,						// SABR Beta Parameter
+	double* ResultImpliedVolReshaped,	// Output : SABR Implied Vol
+	double* ResultLocalVolReshaped,		// Output : SABR LocalVol
 
-	double* ResultParams,
-	double* Futures
+	double* ResultParams,				// Term별 SABR 파라미터
+	double* Futures						// Futures 가격
 )
 {
 	long i, j;
@@ -502,6 +476,6 @@ DLLEXPORT(long) Excel_SABR_Vol(
 		ResultParams, Futures
 	);
 
-	_CrtDumpMemoryLeaks();
+	//_CrtDumpMemoryLeaks();
 	return ResultCode;
 }

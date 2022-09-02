@@ -147,6 +147,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CalcDate.h" />
+    <ClInclude Include="SABR.h" />
     <ClInclude Include="Structure.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>

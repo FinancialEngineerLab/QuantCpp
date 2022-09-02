@@ -56,8 +56,7 @@ double ran1(long* idum, long& iy, long* iv)
 {
 	long j;
 	long k;
-	//static long iy = 0;
-	//static long iv[NTAB];
+
 	double temp;
 
 	if (*idum <= 0 || !iy) {
