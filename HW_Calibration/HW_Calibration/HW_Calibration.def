@@ -1,5 +1,0 @@
-LIBRARY "HW_Calibration"
-EXPORTS
-
-	HW_Calibration_ATM			@1
-	HWCapHWSwaptionCalibration			@4

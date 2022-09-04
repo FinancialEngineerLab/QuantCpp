@@ -32,7 +32,6 @@
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
 double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
-long idum = -1;
 
 /////////////////////////////////////////////////
 // Numerical Recipy Random Number Generator
@@ -48,9 +47,11 @@ long idum = -1;
 #define NDIV (1+(IM-1)/NTAB)
 #define EPS 1.2e-7
 #define RNMX (1.0-EPS)
-static long iy = 0;
-static long iv[NTAB];
-
+long idum = -1;
+long iy = 0;
+long iv[NTAB];
+long iset = 0;
+double gset = 0.0;
 
 double ran1(long* idum, long& iy, long* iv)
 {
@@ -82,8 +83,6 @@ double ran1(long* idum, long& iy, long* iv)
 
 double randnorm()
 {
-	static long iset = 0;
-	static double gset;
 	double fac, rsq, v1, v2;
 	if (idum < 0) iset = 0;
 	if (iset == 0) {
@@ -104,11 +103,39 @@ double randnorm()
 	}
 }
 
+double randn(long seed, long& idum_forsim, long& iset_forsim, double& gset_forsim, long& iy_forsim, long* iv_forsim)
+{
+	double fac, rsq, v1, v2;
+
+	if (seed == 0) {
+		idum_forsim = -1;
+		iset_forsim = 0;
+		gset_forsim = 0.0;
+	}
+
+	if (iset_forsim == 0) {
+		do {
+			v1 = 2.0 * ran1(&idum_forsim, iy_forsim, iv_forsim) - 1.0;
+			v2 = 2.0 * ran1(&idum_forsim, iy_forsim, iv_forsim) - 1.0;
+			rsq = v1 * v1 + v2 * v2;
+		} while (rsq >= 1.0 || rsq == 0);
+		fac = sqrt(-2.0 * log(rsq) / rsq);
+		gset_forsim = v1 * fac;
+		iset_forsim = 1;
+		return v2 * fac;
+	}
+	else {
+		iset_forsim = 0;
+		return gset_forsim;
+	}
+}
+
 // mu = 0, sigma = 1 RandomNumber Generate (시드값 주면 리턴하지않고 시드셋팅)
 void randnorm(long seed)
 {
-	idum = seed;
-	iy = 0;
+	idum = -1;
+	iset = 0;
+	gset = 0.0;
 }
 
 // Make 1d Array

@@ -59,13 +59,11 @@ public:
 	long pricingdate;				// 가격계산일 CDate
 	double* s0;						// S Start 값
 	double** correlation;			// 각 자산별 상관계수 Matrix
-	long dynamicflag;				// 클래스 내에서 동적할당 되는지 여부
+	long dynamicflag;				// FixedRandn 사용여부
 	double resultprice;				// 가격결과
 	long maxsimulnode;				// 시뮬레이션 날짜개수
 
 	long randseed;					// 시뮬레이션 랜덤시드값
-
-	// 클래스 내부에서 할당되는 배열
 
 	double* pathprice;				// 가격 Path
 	double*** FixedRandn;			// Random Number Array
@@ -180,7 +178,8 @@ public:
 	// Daily Forward Rate, Dividend, FX Vol Setting
 	void set_daily_data(long* NTerm_Rf, double* Term_Rf, double* Rate_Rf,
 		long* NTerm_Div, double* Term_Div, double* Div, long* DivType,
-		long* NTerm_FXVol, double* Term_FXVol, double* Rate_FXVol, long* Quanto_Flag, double* Quanto_Corr)
+		long* NTerm_FXVol, double* Term_FXVol, double* Rate_FXVol, long* Quanto_Flag, double* Quanto_Corr,
+		double** temp_daily_forward_rate, double** temp_daily_forward_div, double** temp_daily_forward_fxvol)
 	{
 		long i, j;
 
@@ -196,10 +195,11 @@ public:
 		{
 			daily_flag = 1;
 
-			daily_forward_rate = (double**)malloc(sizeof(double*) * nstock);
-			daily_forward_div = (double**)malloc(sizeof(double*) * nstock);
+			daily_forward_rate = temp_daily_forward_rate;
+			daily_forward_div = temp_daily_forward_div;
+			daily_forward_fxvol = temp_daily_forward_fxvol;
+
 			divtype = (long*)malloc(sizeof(long*) * nstock);
-			daily_forward_fxvol = (double**)malloc(sizeof(double*) * nstock);
 			quantoflag = (long*)malloc(sizeof(long*) * nstock);
 			quantocorr = (double*)malloc(sizeof(double) * nstock);
 
@@ -209,10 +209,7 @@ public:
 				nterm_dividend = NTerm_Div[i];
 				nterm_fx_volatility = NTerm_FXVol[i];
 
-				daily_forward_rate[i] = (double*)malloc(sizeof(double) * maxsimulnode);
-				daily_forward_div[i] = (double*)malloc(sizeof(double) * maxsimulnode);
 				divtype[i] = DivType[i];
-				daily_forward_fxvol[i] = (double*)malloc(sizeof(double) * maxsimulnode);
 				quantoflag[i] = Quanto_Flag[i];
 				quantocorr[i] = Quanto_Corr[i];
 
@@ -241,15 +238,6 @@ public:
 		{
 			long i;
 			daily_flag = 0;
-			for (i = 0; i < nstock; i++)
-			{
-				free(daily_forward_rate[i]);
-				free(daily_forward_div[i]);
-				free(daily_forward_fxvol[i]);
-			}
-			free(daily_forward_rate);
-			free(daily_forward_div);
-			free(daily_forward_fxvol);
 			free(divtype);
 			free(quantoflag);
 			free(quantocorr);
@@ -270,7 +258,7 @@ public:
 		daily_flag = 0;
 	}
 
-	simulinfo(long SimulateFlag, long Number_Simul, long Number_Stock, long CalcGreekFlag, long CalculationDate, double* S0_Value, double** CorrelationMat, long MaxSimulDays, double*** FixedRn)
+	simulinfo(long SimulateFlag, long Number_Simul, long Number_Stock, long CalcGreekFlag, long CalculationDate, double* S0_Value, double** CorrelationMat, long MaxSimulDays, double*** FixedRn, double* path_price_input)
 	{
 		long i, j, k;
 
@@ -287,7 +275,7 @@ public:
 		if (SimulateFlag > 0)
 		{
 			dynamicflag = 1;
-			pathprice = (double*)calloc(max(Number_Simul, 1), sizeof(double));
+			pathprice = path_price_input;
 			if (greekflag != 0) FixedRandn = FixedRn;
 		}
 		else
@@ -314,21 +302,12 @@ public:
 		if (dynamicflag == 1)
 		{
 			long i, j;
-			free(pathprice);
 		}
 
 		if (daily_flag != 0)
 		{
 			long i;
-			for (i = 0; i < nstock; i++)
-			{
-				free(daily_forward_rate[i]);
-				free(daily_forward_div[i]);
-				free(daily_forward_fxvol[i]);
-			}
-			free(daily_forward_rate);
-			free(daily_forward_div);
-			free(daily_forward_fxvol);
+
 			free(divtype);
 			free(quantoflag);
 			free(quantocorr);
@@ -673,6 +652,16 @@ double Pricing_HiFive_MC(
 {
 	long i, j, k, n;
 
+	////////////
+	// 랜덤넘버변수
+	////////////
+	long iy_forsim = 0;
+	long iv_forsim[32];
+	long idum_forsim = -1;
+	long iset_forsim = 0;
+	double gset_forsim = 0.0;
+	long seed = 0;
+
 	double dt = 1.0 / 365.0;
 	double sqrt_dt = sqrt(1.0 / 365.0);
 	double MeanPrice;
@@ -759,6 +748,8 @@ double Pricing_HiFive_MC(
 
 	double temp = 0.0;
 
+	if (info_simul.greekflag == 0) randn(seed, idum_forsim, iset_forsim, gset_forsim, iy_forsim, iv_forsim);
+
 	for (i = 0; i < info_simul.nsimul; i++)
 	{
 		Now_KI_State = info_hifive.Now_KI_State;
@@ -815,7 +806,8 @@ double Pricing_HiFive_MC(
 		{
 			for (n = 0; n < info_simul.nstock; n++)
 			{
-				Randn[n] = info_simul.Call_Randn(i, j - 1, n);
+				if (info_simul.greekflag == 0) Randn[n] = randn(1, idum_forsim, iset_forsim, gset_forsim, iy_forsim, iv_forsim);
+				else Randn[n] = info_simul.Call_Randn(i, j - 1, n);
 			}
 
 			for (n = 0; n < info_simul.nstock; n++)
@@ -1093,12 +1085,17 @@ long Preprocessing_HiFive_MC_Excel(
 	double* TermVol,				// 56: 기초자산 별 Vol Term
 	double* Vol,					// 57: 기초자산 별 Vol.reshape(-1)
 	double* ResultPrice,			// 58: OutPut 결과를 담을 Array
-	double* AutocallProb,			// 59: OutPut 조기상환 확률 담을 Array
-	double* CPNProb,				// 60: OutPut 쿠폰확률 담을 Array (미완성)
+	double* path_price,				// 59: Simul Price Path 담을 Array
+	double** daily_forward_rate,	// 60: Daily Forward Rate 담을 Array
 
-	double* ResultLocalVol,			// 61: OutPut Dupire Local Volatility
-	double* ParityVol_Org,			// 62: 기초자산 별 Parity 원래기준
-	double*** FixedRandn
+	double** daily_forward_div,		// 61: Daily Forward Div 담을 Array
+	double** daily_forward_fxvol,	// 62: Daily Forward FXVol 담을 Array
+	double* AutocallProb,			// 63: OutPut 조기상환 확률 담을 Array
+	double* CPNProb,				// 64: OutPut 쿠폰확률 담을 Array (미완성)
+	double* ResultLocalVol,			// 65: OutPut Dupire Local Volatility
+
+	double* ParityVol_Org,			// 66: 기초자산 별 Parity 원래기준
+	double*** FixedRandn			// 67: FixedRandomNumber (Greek계산의경우)
 )
 {
 	long i, j, k, n;
@@ -1107,6 +1104,8 @@ long Preprocessing_HiFive_MC_Excel(
 	long nvol;
 	double price;
 	long MaxSimulDays;
+
+	for (i = 0; i < NSimul; i++) path_price[i] = 0.0;
 
 	//////////////////////////////////////////////////////
 	// 기준가 대비 현재주가 계산, Correlation Matrix 형태로 Reshape
@@ -1464,7 +1463,7 @@ long Preprocessing_HiFive_MC_Excel(
 		ResultPrice[0] = Payoff * DiscFactor;
 	}
 
-	simulinfo Info_Simul(Simulation_Required, NSimul, NStock, GreekFlag, PricingDate_Ctype, S0_Value, CorrelationMatrix, MaxSimulDays, FixedRandn);
+	simulinfo Info_Simul(Simulation_Required, NSimul, NStock, GreekFlag, PricingDate_Ctype, S0_Value, CorrelationMatrix, MaxSimulDays, FixedRandn, path_price);
 
 	//////////////////////////
 	// 이미 지급된 쿠폰이 있다면 현가를 미리 넣어주고 시뮬레이션 시작
@@ -1484,7 +1483,8 @@ long Preprocessing_HiFive_MC_Excel(
 
 	Info_Simul.set_daily_data(N_TermRf, TermRf, RateRf,
 		NDivTerm, TermDiv, Div, DivFlag,
-		NTermQuanto, TermQuanto, VolQuanto, QuantoFlag, QuantoCorr);
+		NTermQuanto, TermQuanto, VolQuanto, QuantoFlag, QuantoCorr,
+		daily_forward_rate, daily_forward_div, daily_forward_fxvol);
 
 
 	HiFiveInfo info_hifive;
@@ -1913,11 +1913,26 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 			}
 		}
 	}
+
+	/////////////////////////////////////////
+	// 빠른 계산을 위해 미리 할당할 배열들 //
+	/////////////////////////////////////////
+	double* path_price = (double*)calloc(NSimul, sizeof(double));
+	double** daily_forward_rate = (double**)malloc(sizeof(double*) * NStock);
+	double** daily_forward_div = (double**)malloc(sizeof(double*) * NStock);
+	double** daily_forward_fxvol = (double**)malloc(sizeof(double*) * NStock);
+	for (i = 0; i < NStock; i++)
+	{
+		daily_forward_rate[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+		daily_forward_div[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+		daily_forward_fxvol[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+	}
+
 	/////////////
 	// 전처리 함수로 넘어가기
 	/////////////
 
-	ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+	ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, 0, FaceValue, FaceValueFlag,
 												MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
 												KI_Method, EvalDate_Ctype, PayDate_Ctype, NStrike, Strike,
 												AutocallSlope, AutocallCPN, NLizard, LizardFlag, LizardStartDate_Ctype,
@@ -1928,8 +1943,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 												Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 												Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
 												VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
-												TermVol, Vol, ResultPrice, AutocallProb, CPNProb,
-												ResultLocalVol, ParityVol, FixedRandn);
+												TermVol, Vol, ResultPrice, path_price, daily_forward_rate,
+												daily_forward_div, daily_forward_fxvol,AutocallProb, CPNProb,ResultLocalVol, 
+												ParityVol, FixedRandn);
 	
 	long* nvolsum = (long*)malloc(sizeof(long) * (NStock + 1));										// 12
 	nvolsum[0] = 0;
@@ -1944,7 +1960,23 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	{
 		double* Su = (double*)malloc(sizeof(double) * NStock);
 		double* Sd = (double*)malloc(sizeof(double) * NStock);
-		double Del, Gam, Pu, Pd;
+		double Del, Gam, Pu, Pd, P;
+		ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+			MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+			KI_Method, EvalDate_Ctype, PayDate_Ctype, NStrike, Strike,
+			AutocallSlope, AutocallCPN, NLizard, LizardFlag, LizardStartDate_Ctype,
+			LizardEndDate_Ctype, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+			CPN_EvaluateDate_Ctype, CPN_PayDate_Ctype, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+			NStock, S, X, Base_S, Base_S_CPN,
+			CorrelationReshaped, N_DF_Curve, Term_DF_Curve, Rate_DF_Curve, N_Rf_Curve,
+			Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
+			Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
+			VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
+			TermVol, Vol, ResultPriceTemp, path_price, daily_forward_rate,
+			daily_forward_div, daily_forward_fxvol,	AutocallProbTemp,	CPNProbTemp, ResultLocalVolTemp, 
+			ParityVol, FixedRandn);
+		P = ResultPriceTemp[0];
+
 		for (i = 0; i < NStock; i++)
 		{
 			for (j = 0; j < NStock; j++)
@@ -1971,8 +2003,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
 				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
-				TermVol, Vol, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp, ParityVol, FixedRandn);
+				TermVol, Vol, ResultPriceTemp, path_price, daily_forward_rate,
+				daily_forward_div, daily_forward_fxvol,AutocallProbTemp, CPNProbTemp, ResultLocalVolTemp, 
+				ParityVol, FixedRandn);
 			Pu = ResultPriceTemp[0];
 
 			ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
@@ -1986,12 +2019,13 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
 				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
-				TermVol, Vol, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp, ParityVol, FixedRandn);
+				TermVol, Vol, ResultPriceTemp, path_price, daily_forward_rate,
+				daily_forward_div, daily_forward_fxvol, AutocallProbTemp,CPNProbTemp, ResultLocalVolTemp, 
+				ParityVol, FixedRandn);
 			Pd = ResultPriceTemp[0];
 
 			Del = (Pu - Pd) / (2.0 * 0.01 * S[i]);
-			Gam = (Pu + Pd - 2.0 * ResultPrice[0]) / (S[i] * 0.01 * S[i] * 0.01);
+			Gam = (Pu + Pd - 2.0 * P) / (S[i] * 0.01 * S[i] * 0.01);
 			ResultPrice[i + 1] = Del;
 			ResultPrice[NStock + i + 1] =Gam;
 
@@ -2041,8 +2075,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
 				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
-				TermVol, voltempup, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp, ParityVol, FixedRandn);
+				TermVol, voltempup, ResultPriceTemp, path_price, daily_forward_rate,
+				daily_forward_div, daily_forward_fxvol, AutocallProbTemp, CPNProbTemp, ResultLocalVolTemp, 
+				ParityVol, FixedRandn);
 			pu = ResultPriceTemp[0];
 
 			ResultCode = Preprocessing_HiFive_MC_Excel(PricingDate_Ctype, NSimul, GreekFlag, FaceValue, FaceValueFlag,
@@ -2056,8 +2091,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				Term_Rf_Curve, Rate_Rf_Curve, NDivTerm, DivFlag, TermDiv,
 				Div, QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto,
 				VolQuanto, ImVolLocalVolFlag, NParityVol, ParityVol_Adj, NTermVol,
-				TermVol, voltempdn, ResultPriceTemp, AutocallProbTemp, CPNProbTemp,
-				ResultLocalVolTemp, ParityVol, FixedRandn);
+				TermVol, voltempdn, ResultPriceTemp, path_price, daily_forward_rate,
+				daily_forward_div, daily_forward_fxvol, AutocallProbTemp,CPNProbTemp, ResultLocalVolTemp, 
+				ParityVol, FixedRandn);
 			pd = ResultPriceTemp[0];
 			Vega = (pu - pd) / 2.0 / 100.0;
 			ResultPrice[2 * NStock + i + 1] = Vega;
@@ -2097,6 +2133,17 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 		}
 	}
 	free(FixedRandn);
+	free(path_price);
+	for (i = 0; i < NStock; i++)
+	{
+		free(daily_forward_rate[i]);
+		free(daily_forward_div[i]);
+		free(daily_forward_fxvol[i]);
+	}
+	free(daily_forward_rate);
+	free(daily_forward_div);
+	free(daily_forward_fxvol);
+
 	_CrtDumpMemoryLeaks();
 
 	return ResultCode;
@@ -3016,7 +3063,22 @@ long HiFive_VaR_Excel(
 			}
 		}
 	}
-	simulinfo Info_Simul(1, NSimul, NStock, 1, PricingDate_Ctype, S0_ForSimul[0], CorrelationMatrix, MaxSimulDays, FixedRandn);
+
+	/////////////////////////////////////////
+	// 빠른 계산을 위해 미리 할당할 배열들 //
+	/////////////////////////////////////////
+	double* path_price = (double*)calloc(NSimul, sizeof(double));
+	double** daily_forward_rate = (double**)malloc(sizeof(double*) * NStock);
+	double** daily_forward_div = (double**)malloc(sizeof(double*) * NStock);
+	double** daily_forward_fxvol = (double**)malloc(sizeof(double*) * NStock);
+	for (i = 0; i < NStock; i++)
+	{
+		daily_forward_rate[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+		daily_forward_div[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+		daily_forward_fxvol[i] = (double*)malloc(sizeof(double) * MaxSimulDays);
+	}
+
+	simulinfo Info_Simul(1, NSimul, NStock, 1, PricingDate_Ctype, S0_ForSimul[0], CorrelationMatrix, MaxSimulDays, FixedRandn, path_price);
 
 	for (idx_hist = 0; idx_hist < NHistory; idx_hist++)
 	{
@@ -3369,7 +3431,8 @@ long HiFive_VaR_Excel(
 
 		Info_Simul.set_daily_data(N_TermRf, TermRf_Simul, RateRf_Simul,
 			NDiv_Simul[idx_hist], DivTerm_Simul[idx_hist], DivRate_Simul[idx_hist], DivFlag,
-			NFXVol_Simul[idx_hist], FXVolTerm_Simul[idx_hist], FXVolRate_Simul[idx_hist], QuantoFlag, QuantoCorr_Simul[idx_hist]);
+			NFXVol_Simul[idx_hist], FXVolTerm_Simul[idx_hist], FXVolRate_Simul[idx_hist], QuantoFlag, QuantoCorr_Simul[idx_hist],
+			daily_forward_rate, daily_forward_div, daily_forward_fxvol);
 
 		PriceHistory[idx_hist] = Preprocessing_HiFiVe_VaR(RedempFlag, LizardRedempFlag, FaceValue, FaceValueFlag, MaxProfit,
 			MaxLoss, NStock, S0_ForSimul[idx_hist], X, KI_Method,
@@ -3463,8 +3526,16 @@ long HiFive_VaR_Excel(
 		free(FixedRandn[i]);
 	}
 	free(FixedRandn);
-
-
+	free(path_price);
+	for (i = 0; i < NStock; i++)
+	{
+		free(daily_forward_rate[i]);
+		free(daily_forward_div[i]);
+		free(daily_forward_fxvol[i]);
+	}
+	free(daily_forward_rate);
+	free(daily_forward_div);
+	free(daily_forward_fxvol);
 	return 1;
 }
 
