@@ -1,4 +1,5 @@
 LIBRARY
 
 EXPORTS
-	IRSwap_Excel         @001
+	IRSwap_Excel				@001
+	OISCurveGeneratorExcel		@002
