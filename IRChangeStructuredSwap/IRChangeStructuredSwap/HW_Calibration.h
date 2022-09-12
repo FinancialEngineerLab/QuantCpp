@@ -1441,7 +1441,7 @@ DLLEXPORT(long) HW_Calibration_ATM(
 void NextLambda(double ErrorSquareSum, double PrevErrorSquareSum, double* lambda, long& BreakFlag)
 {
     double LambdaMax = 1000000;
-    double LambdaMin = 0.0000001;
+    double LambdaMin = 0.00001;
 
     if (ErrorSquareSum < PrevErrorSquareSum) *lambda *= 0.1;
     else *lambda *= 10.0;

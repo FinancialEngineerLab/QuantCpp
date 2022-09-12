@@ -10,9 +10,17 @@
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 #endif
 
+#ifndef STRUCTURE
+#define STRUCTURE 1
+#endif
+
 double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt);
 double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
 double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
+double d1(double S, double K, double T, double r, double div, double Vol);
+double dImvol_over_dK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK);
+double dImvoldImvol_over_dKdK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK);
+double dImvol_over_dT(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dT);
 void fillna_Interpolate(double** Matrix, long N_Index, long N_Column);
 
 //커브정보
@@ -42,7 +50,7 @@ public:
 			}
 		}
 	}
-	
+
 	curveinfo(long length_term, double* termarray, double* ratearray)
 	{
 		dynamicflag = 0;
@@ -106,7 +114,18 @@ public:
 		return Interpolated_Rate(targetx, 0);
 	}
 
-
+	void Rate_Up(double percentpoint)
+	{
+		long i, nt;
+		if (dynamicflag != 0)
+		{
+			nt = N_Term;
+			for (i = 0; i < nt; i++)
+			{
+				Rate[i] = Rate[i] + percentpoint;
+			}
+		}
+	}
 };
 
 //변동성정보
@@ -124,6 +143,39 @@ public:
 	double* Parity;
 	double* Term_Locvol;
 	double* Parity_Locvol;     //Parity 보정 가능하게 하기 위해 Public
+
+	void copyclass(long N_Parity2, long N_Term2, double** Vol_Matrix2, double** LocalVolMat2, double* Term2, double* Parity2, double* Term_Locvol2, double* Parity_Locvol2)
+	{
+		long i, j;
+		N_Parity = N_Parity2;
+		N_Term = N_Term2;
+		dynamicflag = 2;
+		localvol_dynamicflag = 1;
+		Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
+		LocalVolMat = (double**)malloc(sizeof(double*) * N_Parity);
+		for (i = 0; i < N_Parity; i++)
+		{
+			Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
+			LocalVolMat[i] = (double*)malloc(sizeof(double) * N_Term);
+			for (j = 0; j < N_Term; j++)
+			{
+				Vol_Matrix[i][j] = Vol_Matrix2[i][j];
+				LocalVolMat[i][j] = LocalVolMat2[i][j];
+			}
+		}
+		Term = (double*)malloc(sizeof(double) * N_Term);
+		for (i = 0; i < N_Term; i++) Term[i] = Term2[i];
+
+		Parity = (double*)malloc(sizeof(double) * N_Parity);
+		for (i = 0; i < N_Parity; i++) Parity[i] = Parity2[i];
+
+		Term_Locvol = (double*)malloc(sizeof(double) * N_Term);
+		for (i = 0; i < N_Term; i++) Term_Locvol[i] = Term_Locvol2[i];
+
+		Parity_Locvol = (double*)malloc(sizeof(double) * N_Parity);
+		for (i = 0; i < N_Parity; i++) Parity_Locvol[i] = Parity_Locvol2[i];
+
+	}
 
 	volinfo()
 	{
@@ -183,6 +235,38 @@ public:
 		}
 	}
 
+	void hardcopyUp(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol, double percentpoint)
+	{
+		if (dynamicflag == 0)
+		{
+			long i, j, k;
+			dynamicflag = 2;
+			N_Parity = length_parity;
+			N_Term = length_term;
+			Term = (double*)malloc(sizeof(double) * N_Term);
+			for (i = 0; i < N_Term; i++)
+			{
+				Term[i] = termarray[i];
+			}
+			Parity = (double*)malloc(sizeof(double) * N_Parity);
+			for (i = 0; i < N_Parity; i++)
+			{
+				Parity[i] = parityarray[i];
+			}
+			Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
+			k = 0;
+			for (i = 0; i < N_Parity; i++)
+			{
+				Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
+				for (j = 0; j < N_Term; j++)
+				{
+					Vol_Matrix[i][j] = max(0.0001, reshapedvol[k] + percentpoint);
+					k++;
+				}
+			}
+		}
+	}
+
 	//변동성정보 생성자 (변동성 매핑: Parity길이, Parity, Term길이, Term, reshapedvol , copyflag)
 	volinfo(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol, long copyflag)
 	{
@@ -211,6 +295,10 @@ public:
 		if (dynamicflag == 1)
 		{
 			if (Vol_Matrix) free(Vol_Matrix);
+		}
+		else if (dynamicflag == 0)
+		{
+
 		}
 		else
 		{
@@ -349,7 +437,7 @@ public:
 		long Current_Node_S = 0;
 		double Slope_T;
 		double Slope_S;
-		double Result_Vol= 0.0;
+		double Result_Vol = 0.0;
 
 		if (T <= Term_Locvol[0])
 		{
@@ -512,35 +600,26 @@ public:
 
 			long i;
 			long j;
-
+			double A, B;
 			double S = 1.0;
-			double F;
-			double y;
-
+			double K;
+			double T;
 			double Rf = 0.0;
 			double Div = 0.0;
-
 			double dT = (Term[N_Term - 1] - Term[0]) / ((double)N_Term - 1.0);
 			double dK = (Parity[N_Parity - 1] - Parity[0]) / ((double)N_Parity - 1.0);
-
 			double* RiskFree;
 			double* Dividend;
-			double** w;
 			double** ImvolMat;
-
-			double w_t;
-			double w_y;
-			double w_yy;
-			double D;
+			double v, dv_dt, dv_dk, dvdv_dkdk;
+			double d_1;
 			double LocVar;
 
 			Term_Locvol = (double*)calloc(N_Term, sizeof(double));                    // 리턴용 할당
-			for (i = 0; i < N_Term; i++)
-				Term_Locvol[i] = Term[0] + (double)i * dT;
+			for (i = 0; i < N_Term; i++) Term_Locvol[i] = Term[0] + (double)i * dT;
 
 			Parity_Locvol = (double*)calloc(N_Parity, sizeof(double));                // 리턴용
-			for (i = 0; i < N_Parity; i++)
-				Parity_Locvol[i] = Parity[0] + (double)i * dK;
+			for (i = 0; i < N_Parity; i++) Parity_Locvol[i] = Parity[0] + (double)i * dK;
 
 			RiskFree = (double*)calloc(N_Term, sizeof(double));                       // 할당 1
 			Dividend = (double*)calloc(N_Term, sizeof(double));                       // 할당 2
@@ -550,35 +629,33 @@ public:
 				Dividend[i] = div_curve->Interpolated_Rate(Term_Locvol[i]);
 			}
 
-			w = (double**)malloc((N_Parity) * sizeof(double*));                       // 할당 3       2차원
-			ImvolMat = (double**)malloc((N_Parity) * sizeof(double*));                // 할당 4       2차원
-
+			ImvolMat = (double**)malloc((N_Parity) * sizeof(double*));                // 할당 3       2차원
 			LocalVolMat = (double**)malloc((N_Parity) * sizeof(double*));             // 리턴용 할당
 
 			for (i = 0; i < N_Parity; i++)
 			{
-				w[i] = (double*)calloc((N_Term), sizeof(double));
 				ImvolMat[i] = (double*)calloc((N_Term), sizeof(double));
 				LocalVolMat[i] = (double*)calloc((N_Term), sizeof(double));
 
-				for (j = 0; j < N_Term; j++)
-				{
-					ImvolMat[i][j] = Calc_Implied_Volatility(Term_Locvol[j], Parity_Locvol[i]);
-					w[i][j] = ImvolMat[i][j] * ImvolMat[i][j] * Term_Locvol[j];
-				}
+				for (j = 0; j < N_Term; j++) ImvolMat[i][j] = Calc_Implied_Volatility(Term_Locvol[j], Parity_Locvol[i]);
 			}
 
 			for (i = 0; i < N_Parity; i++)
 			{
 				for (j = 0; j < N_Term; j++)
 				{
-					F = S * exp((RiskFree[j] - Dividend[j]) * Term_Locvol[j]);
-					y = log(Parity_Locvol[i] / F);
-					w_t = dw_over_dt(w, N_Parity, N_Term, i, j, dT);
-					w_y = dw_over_dy(w, N_Parity, N_Term, i, j, Parity_Locvol, dK);
-					w_yy = dwdw_over_dydy(w, N_Parity, N_Term, i, j, Parity_Locvol, dK);
-					D = 1.0 - y / w[i][j] * w_y + 0.25 * (-0.25 - 1.0 / w[i][j] + y * y / (w[i][j] * w[i][j])) * w_y * w_y + 0.5 * w_yy;
-					LocVar = w_t / D;
+					Rf = RiskFree[j];
+					Div = Dividend[j];
+					K = Parity_Locvol[i];
+					T = Term_Locvol[j];
+					v = ImvolMat[i][j];
+					dv_dt = dImvol_over_dT(ImvolMat, N_Parity, N_Term, i, j, dT);
+					dv_dk = dImvol_over_dK(ImvolMat, N_Parity, N_Term, i, j, dK);
+					dvdv_dkdk = dImvoldImvol_over_dKdK(ImvolMat, N_Parity, N_Term, i, j, dK);
+					d_1 = d1(S, K, T, Rf, Div, v);
+					A = v * v + 2.0 * v * T * (dv_dt + (Rf - Div) * K * dv_dk);
+					B = (1.0 + K * d_1 * dv_dk * sqrt(T)) * (1.0 + K * d_1 * dv_dk * sqrt(T)) + v * K * K * T * (dvdv_dkdk - d_1 * dv_dk * dv_dk * sqrt(T));
+					LocVar = A / B;
 					if (LocVar > 0)
 						LocalVolMat[i][j] = max(min(sqrt(LocVar), MAXVOL), MINVOL);
 					else
@@ -592,11 +669,15 @@ public:
 			if (Dividend) free(Dividend);        // 할당 2
 			for (i = 0; i < N_Parity; i++)
 			{
-				if (w[i]) free(w[i]);                   // 할당 3       2차원
-				if (ImvolMat[i]) free(ImvolMat[i]);     // 할당 4       2차원
+				if (ImvolMat[i]) free(ImvolMat[i]);     // 할당 3      2차원
 			}
-			if (w) free(w);
 			if (ImvolMat) free(ImvolMat);
+		}
+		else
+		{
+			Term_Locvol = Term;
+			Parity_Locvol = Parity;
+			LocalVolMat = Vol_Matrix;
 		}
 
 	}
@@ -608,10 +689,17 @@ public:
 
 	void delete_localvol()
 	{
+		long i;
 		if (localvol_dynamicflag == 1)
 		{
 			free(Term_Locvol);
 			free(Parity_Locvol);
+			for (i = 0; i < N_Parity; i++)
+			{
+				free(LocalVolMat[i]);
+			}
+			free(LocalVolMat);
+			localvol_dynamicflag = 0;
 		}
 	}
 };
@@ -776,5 +864,73 @@ void fillna_Interpolate(double** Matrix, long N_Index, long N_Column)
 					value = -99999.99;
 				}
 				Matrix[i][j] = value;
+
 			}
+}
+
+double d1(double S, double K, double T, double r, double div, double Vol)
+{
+	double d1;
+	d1 = (log(S / K) + (r - div + 0.5 * Vol * Vol) * T) / (Vol * sqrt(T));
+	return d1;
+}
+
+double dImvol_over_dK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
+{
+	double dImvol;
+	if (idx_parity == 0)
+	{
+		dImvol = ImVol[1][idx_term] - ImVol[0][idx_term];
+		return dImvol / dK;
+	}
+	else if (idx_parity == NParity - 1)
+	{
+		dImvol = ImVol[NParity - 1][idx_term] - ImVol[NParity - 2][idx_term];
+		return dImvol / dK;
+	}
+	else
+	{
+		dImvol = ImVol[idx_parity + 1][idx_term] - ImVol[idx_parity - 1][idx_term];
+		return dImvol / (2.0 * dK);
+	}
+}
+
+double dImvoldImvol_over_dKdK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
+{
+	double dImvoldImvol;
+	if (idx_parity == 0)
+	{
+		dImvoldImvol = ImVol[2][idx_term] + ImVol[0][idx_term] - 2.0 * ImVol[1][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+	else if (idx_parity == NParity - 1)
+	{
+		dImvoldImvol = ImVol[NParity - 1][idx_term] + ImVol[NParity - 3][idx_term] - 2.0 * ImVol[NParity - 2][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+	else
+	{
+		dImvoldImvol = ImVol[idx_parity + 1][idx_term] + ImVol[idx_parity - 1][idx_term] - 2.0 * ImVol[idx_parity][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+}
+
+double dImvol_over_dT(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dT)
+{
+	double dImvol;
+	if (idx_term == 0)
+	{
+		dImvol = ImVol[idx_parity][1] - ImVol[idx_parity][0];
+		return dImvol / dT;
+	}
+	else if (idx_term == NTerm - 1)
+	{
+		dImvol = ImVol[idx_parity][NTerm - 1] - ImVol[idx_parity][NTerm - 2];
+		return dImvol / dT;
+	}
+	else
+	{
+		dImvol = ImVol[idx_parity][idx_term + 1] - ImVol[idx_parity][idx_term - 1];
+		return dImvol / (2.0 * dT);
+	}
 }

@@ -251,7 +251,6 @@ void Levenberg_Marquardt_SABR(
 	double** JT_Res = make_array(NParams, 1);
 	double** ResultMatrix = make_array(NParams, 1);
 	double FirstErrorSquare = 1.0;
-	lambda[0] = 0.0;
 	for (n = 0; n < 50; n++)
 	{
 		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, NTermFutures, TermFuturesArray, FuturesArray);
