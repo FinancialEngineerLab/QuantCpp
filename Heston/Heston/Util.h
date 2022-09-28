@@ -208,7 +208,16 @@ void Print_Array(double** Array, long n, long m)
 	printf("]");
 }
 
+void rounding(double** Matrix, long nrow, long ncol, long n_decimal)
+{
+	long i;
+	long j;
+	double div = 1.0;
+	for (i = 0; i < n_decimal; i++) div *= 10.0;
 
+	for (i = 0; i < nrow; i++)
+		for (j = 0; j < ncol; j++) Matrix[i][j] = floor(Matrix[i][j] * div + 0.5) / div;
+}
 
 //표준정규분포(Standard Normal Distribution) PDF
 DLLEXPORT(double) PDF_N(double x)

@@ -186,6 +186,7 @@ void Levenberg_Marquardt_SABR(long NParams, long NResidual, double* NextParams, 
 
 	// J' dot J                 Shape = m * m
 	XprimeDotX(Jacov, Shape_J, JT_J);
+	rounding(JT_J, m, m, 5);
 
 	// J'J + mu * diag(J'J)     Shape = m * m
 	for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;//*JT_J[i][i];
@@ -264,7 +265,7 @@ void Levenberg_Marquardt_SABR(
 		Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
 		for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
-		if (ParamSum < StopCondition && n > 10) break;
+		if ((ParamSum < StopCondition || lambda[0] < 1.0e-5) && n > 10) break;
 		if (ErrorSquareSum / FirstErrorSquare < 0.001) break;
 
 		PrevErrorSquareSum = ErrorSquareSum;

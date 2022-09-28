@@ -1463,6 +1463,7 @@ void Levenberg_Marquardt(long NParams, long NResidual, double* NextParams, doubl
 
     // J' dot J                 Shape = m * m
     XprimeDotX(Jacov, Shape_J, JT_J);
+    rounding(JT_J, m, m, 5);
 
     // J'J + mu * diag(J'J)     Shape = m * m
     for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;// *JT_J[i][i];

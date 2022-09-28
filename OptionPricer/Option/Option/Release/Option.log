@@ -1,18 +1,18 @@
 ﻿  Option.cpp
 C:\Users\ciiad\github5\OptionPricer\Option\Option\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1116,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1116,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1205,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1554,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1554,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1550,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1551,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1579,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1579,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1575,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1576,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1594,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1125,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1125,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1214,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1563,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1563,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1559,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1560,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1588,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1588,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1584,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1585,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option\Util.h(1603,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option\Option.cpp(369,30): warning C4101: 'T_Simul_To_Maturity' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option\Option.cpp(755,29): warning C4101: 'T2' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option\Option.cpp(761,14): warning C4101: 'Rf_Quanto' :참조되지 않은 지역 변수입니다.
@@ -25,6 +25,6 @@ C:\Users\ciiad\github5\OptionPricer\Option\Option\Option.cpp(1489,7): warning C4
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
 C:\Users\ciiad\github5\OptionPricer\Option\Option\CalcDate.h(372): warning C4715: 'DayPlus': 모든 제어 경로에서 값을 반환하지는 않습니다.
-  All 60 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 61 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   Option.vcxproj -> C:\Users\ciiad\github5\OptionPricer\Option\Release\Option.dll
