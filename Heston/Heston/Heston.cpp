@@ -233,13 +233,50 @@ double HestonPrice(double S, double K, double r, double div,
     }
     //computing the price
     double callPrice = S * exp(-div * tau) - (1.0 / (PI)) * K * exp(-r * tau) * trapezoidalValue;
-
+    
     if (callPrice < 0.0 || callPrice > S) callPrice = BS_CallPrice(S, K, tau, sqrt(init_variance), r, div);
 
     if (optType == 0) price = callPrice;
     else price = callPrice + K * exp(-r * tau) - S * exp(-div * tau);
     return price;
 }
+
+double Heston_LocalVol(double S, double K, double r, double div,
+    double init_variance, double tau,
+    double LR_variance, double kappa, double volofvol, double rho,
+    double gamma,
+    long kmax, double* int_x, double* int_y, double CallOption)
+{
+    double dK;
+    long optType = 0;
+    if (K <= 2.0 && K > 0.0) dK = 0.01;
+    else dK = K * 0.01;
+
+    double Cup, Cdn, C;
+    Cup = HestonPrice(S, K + dK, r, div, init_variance, tau, LR_variance, kappa, volofvol, rho, gamma, optType, kmax, int_x, int_y);
+    Cdn = HestonPrice(S, K - dK, r, div, init_variance, tau, LR_variance, kappa, volofvol, rho, gamma, optType, kmax, int_x, int_y);
+    C = HestonPrice(S, K, r, div, init_variance, tau, LR_variance, kappa, volofvol, rho, gamma, optType, kmax, int_x, int_y);
+    
+    double C_k =  (Cup - Cdn) / (2.0 * dK);
+    double C_kk = (Cup + Cdn - 2.0 * C) / (dK * dK);
+    
+    double T_up = tau + 1.0 / 12.0;
+    double T_dn = max(0.001, tau - 1.0 / 12.0);
+    double dT = (T_up - T_dn) * 0.5;
+    double Cup2, Cdn2;
+    Cup2 = HestonPrice(S, K, r, div, init_variance, T_up, LR_variance, kappa, volofvol, rho, gamma, optType, kmax, int_x, int_y);
+    Cdn2 = HestonPrice(S, K, r, div, init_variance, T_dn, LR_variance, kappa, volofvol, rho, gamma, optType, kmax, int_x, int_y);
+    double C_T = (Cup2 - Cdn2) / (2.0 * dT);
+
+    double LocalVar = (C_T) / (0.5 * K * K * C_kk);
+    double LocalVol = 0.0;
+    if (LocalVar > 0.0)
+        LocalVol = sqrt(LocalVar);
+    else
+        LocalVol = -999999.99;
+    return LocalVol;
+}
+
 
 double HestonPrice_Test(double S, double K, double r, double div, double* Params, double tau, double V0)
 {
@@ -539,6 +576,53 @@ void HestonNextLambda(double ErrorSquareSum, double PrevErrorSquareSum, double* 
     }
 }
 
+double CalcImvol(
+    double S,
+    double K,
+    double T,
+    double r,
+    double div,
+    double kappa,
+    double volofvol,
+    double LR_variance,
+    double rho,
+    double kmax,
+    double* int_x,
+    double* int_y,
+    double CallPrice
+)
+{
+    long i;
+    double init_variance;
+    double Maxvol = 1.0;
+    double Minvol = 0.01;
+    double Targetvol = Maxvol;
+    double dblErrorRange = CallPrice * 0.000001;
+    double dblPriceGap;
+    double BS_C = 0.0;
+
+    for (i = 0; i < 100; i++)
+    {
+        init_variance = Targetvol * Targetvol;
+        BS_C = HestonPrice(S, K, r, div, init_variance, T, LR_variance, kappa, volofvol, rho, 0.0, 0, kmax, int_x, int_y);
+
+        dblPriceGap = BS_C - CallPrice;
+        if (fabs(dblPriceGap) < dblErrorRange)
+            break;
+        if (dblPriceGap > 0.0)
+        {
+            Maxvol = Targetvol;
+            Targetvol = (Maxvol + Minvol) / 2.0;
+        }
+        else
+        {
+            Minvol = Targetvol;
+            Targetvol = (Minvol + Maxvol) / 2.0;
+        }
+    }
+    return Targetvol;
+}
+
 void Levenberg_Marquardt_HESTON(
     long NParams,               // Heston 파라미터 개수 = 5
     double* Params,             // 파라미터 Array = [kappa, volofvol, MeanVaR, rho, V0
@@ -552,7 +636,6 @@ void Levenberg_Marquardt_HESTON(
     double* TermVolNew,         // BS Call 계산하기 위해 사용된 만기
     double* ParityVolNew,       // BS Call 계산하기 위해 사용된 Moneyness
     double* BSCallArray,        // BS Call 가격
-    double* VolNew,             //
     double* HestonCallNew       // Output : Heston Call
 )
 {
@@ -630,6 +713,7 @@ void Levenberg_Marquardt_HESTON(
     }
 
     for (i = 0; i < NResidual; i++) HestonCallNew[i] = argminhestoncall[i];
+    for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
 
     free(NextParams);
     for (i = 0; i < NParams; i++) free(JT_J[i]);
@@ -680,7 +764,7 @@ void HestonCalibration(
     for (i = 0; i < NTermVol * NParityVol; i++) r[i] = Interpolate_Linear(TermRate, Rate, NTerm, TermVolNew[i]);
     for (i = 0; i < NTermVol * NParityVol; i++) div[i] = Interpolate_Linear(DivTerm, DivRate, NDiv, TermVolNew[i]);
 
-    for (i = 0; i < NTermVol * NParityVol; i++) BSCallArray[i] = BS_CallPrice(1.0, ParityVolNew[i], TermVolNew[i], VolNew[i], r[i], div[i]);
+    for (i = 0; i < NTermVol * NParityVol; i++) BSCallArray[i] = BS_CallPrice(1.0, ParityVolNew[i], TermVolNew[i], Vol[i], r[i], div[i]);
     double* HestonCallNew = (double*)malloc(sizeof(double) * NTermVol * NParityVol);
     for (i = 0; i < NTermVol * NParityVol; i++) HestonCallNew[i] = Vol[i];
 
@@ -698,11 +782,19 @@ void HestonCalibration(
         ParamsDn[i] = Params[i];
     }
     double* ResultHestonCall = (double*)malloc(sizeof(double) * NTermVol * NParityVol);
-    Levenberg_Marquardt_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, VolNew, HestonCallNew);
+    Levenberg_Marquardt_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, HestonCallNew);
 
     for (i = 0; i < NTermVol * NParityVol; i++) ResultHestonCall[i] = HestonCallNew[i];
 
-    
+    const long kmax = 1000;
+    double integ_x[kmax * 5] = { 0.0, };
+    double integ_y[kmax * 5] = { 0.0, };
+    for (i = 0; i < NTermVol * NParityVol; i++)
+    {
+        VolNew[i] = Heston_LocalVol(1.0, ParityVolNew[i], r[i], div[i], Params[4],
+            TermVolNew[i], Params[2], Params[0], Params[1], Params[3], 0.0, kmax, integ_x, integ_y, HestonCallNew[i]);
+    }
+
     free(ResultHestonCall);
     free(TermVolNew);
     free(ParityVolNew);
