@@ -1946,7 +1946,7 @@ void Levenberg_Marquardt_HWSwaption(
     long Levenberg = 1;
 
     double StopCondition = 0.0001;
-
+    double minerror = 1000000.0;
     double absErrorSum = 100000.0;
     double PrevAbsErrorSum = 0.0;
     double ParamSum = 10000.0;
@@ -1956,9 +1956,11 @@ void Levenberg_Marquardt_HWSwaption(
     double** Inverse_JT_J = make_array(NParams, NParams);
     double** JT_Res = make_array(NParams, 1);
     double** ResultMatrix = make_array(NParams, 1);
+    double* argminparam = make_array( NParams);
+
     if (Levenberg == 1)
     {
-        for (n = 0; n < 50; n++)
+        for (n = 0; n < 20; n++)
         {
 
             make_Jacov_HWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
@@ -1971,13 +1973,22 @@ void Levenberg_Marquardt_HWSwaption(
                 TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
                 nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa);
 
-            if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+            if (n >= 1)
+            {
+                NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+                if (absErrorSum < minerror)
+                {
+                    minerror = absErrorSum;
+                    for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                }
+            }
 
             Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
             for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
             if (ParamSum < StopCondition && n > 10) break;
             if (BreakFlag == 1) break;
+            if (lambda[0] < 1.0e-07) break;
 
             PrevAbsErrorSum = absErrorSum;
         }
@@ -1985,7 +1996,7 @@ void Levenberg_Marquardt_HWSwaption(
     else
     {
         lambda[0] = 0.0;
-        for (n = 0; n < 50; n++)
+        for (n = 0; n < 20; n++)
         {
             make_Jacov_HWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
                 NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
@@ -1998,17 +2009,25 @@ void Levenberg_Marquardt_HWSwaption(
                 TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
                 nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa);
 
-            if (n >= 1) NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
-
+            if (n >= 1)
+            {
+                NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+                if (absErrorSum < minerror)
+                {
+                    minerror = absErrorSum;
+                    for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                }
+            }
             Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
             for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
             if (ParamSum < StopCondition && n > 10) break;
-
+            if (lambda[0] < 1.0e-07) break;
             PrevAbsErrorSum = absErrorSum;
         }
     }
 
+    for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
 
     free(NextParams);
     for (i = 0; i < NParams; i++) free(JT_J[i]);
@@ -2019,6 +2038,7 @@ void Levenberg_Marquardt_HWSwaption(
     free(JT_Res);
     for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
     free(ResultMatrix);
+
 }
 
 

@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{3301e6d1-9277-47a1-95d8-4cbd9513cdf5}</ProjectGuid>
+    <ProjectGuid>{2834986b-74c8-48bb-b41b-0f21c7889e39}</ProjectGuid>
     <RootNamespace>IRChangeStructuredSwap</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -143,17 +143,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="CalcDate.h" />
-    <ClInclude Include="ErrorCheck.h" />
-    <ClInclude Include="HW_Calibration.h" />
-    <ClInclude Include="Structure.h" />
-    <ClInclude Include="Util.h" />
+    <ClCompile Include="IRChangeStructuredSwap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="IRChangeStructuredSwap.def" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="IRChangeStructuredSwap.cpp" />
+    <ClInclude Include="CalcDate.h" />
+    <ClInclude Include="ErrorCheck.h" />
+    <ClInclude Include="HW_Calibration.h" />
+    <ClInclude Include="Structure.h" />
+    <ClInclude Include="Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
