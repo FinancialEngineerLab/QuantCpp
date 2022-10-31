@@ -46,7 +46,7 @@ long isinFindIndex(long x, long* array, long narray, long& Idx)
     return s;
 }
 
-long isinFindIndex(long x, long* array, long narray, long& Idx, long *startidx)
+long isinFindIndex(long x, long* array, long narray, long& Idx, long* startidx)
 {
     long i;
     long ii = *startidx;
@@ -100,7 +100,7 @@ long FindIndex(
     }
 
     if (i == narray) i = -1;
-        
+
     return i;
 }
 
@@ -164,21 +164,25 @@ typedef struct HW_Parameter {
     double*** RcvRef_DF_t_T;        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T;
     double*** RcvRef_QVTerm;
+    double*** RcvRef_dt;
 
     long* ndates_cpn_powerspread_rcv;
     double*** RcvRef_DF_t_T_PowerSpread;        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T_PowerSpread;
     double*** RcvRef_QVTerm_PowerSpread;
+    double*** RcvRef_dt_PowerSpread;
 
     long* ndates_cpn_pay;
     double*** PayRef_DF_t_T;        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T;
     double*** PayRef_QVTerm;
-    
+    double*** PayRef_dt;
+
     long* ndates_cpn_powerspread_pay;
     double*** PayRef_DF_t_T_PowerSpread;        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T_PowerSpread;
     double*** PayRef_QVTerm_PowerSpread;
+    double*** PayRef_dt_PowerSpread;
 
 } HW_INFO;
 
@@ -270,7 +274,7 @@ typedef struct SimulationInfo {
 }SIMUL_INFO;
 
 // Linear Interpolation (X변수, Y변수, X길이, 타겟X)
-double Interpolate_Linear_Pointer(double* x, double* fx, long nx, double targetx, long *idx)
+double Interpolate_Linear_Pointer(double* x, double* fx, long nx, double targetx, long* idx)
 {
     long i;
     long startidx = *idx;
@@ -304,7 +308,7 @@ double Calc_Discount_Factor_Pointer(
     double* RateArray,
     long LengthArray,
     double T,
-    long *idx
+    long* idx
 )
 {
     double DF;
@@ -526,13 +530,14 @@ double HW_Rate(
     long NCPN_Ann,
     double* PV_t_T,
     double* QVTerm,
-    double* B_t_T
+    double* B_t_T,
+    double* dt
 )
 {
     long i;
     double PtT;
     double term = 1.0 / ((double)NCPN_Ann);
-    double dt = T - t;
+    double deltat = T - t;
     double ResultRate;
     double A, B;
     if (ReferenceType == 0) NCfSwap = 1;
@@ -541,6 +546,7 @@ double HW_Rate(
         B = 0.0;
         for (i = 0; i < NCfSwap; i++)
         {
+            term = dt[i];
             PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] + QVTerm[i]);
             B += term * PtT;
         }
@@ -552,8 +558,8 @@ double HW_Rate(
         if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + QVTerm[0]);
         else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
-        if (dt < 1.0) ResultRate = (1.0 - PtT) / (dt * PtT);
-        else ResultRate = -1.0 / dt * log(PtT);
+        if (deltat < 1.0) ResultRate = (1.0 - PtT) / (deltat * PtT);
+        else ResultRate = -1.0 / deltat * log(PtT);
     }
 
     return ResultRate;
@@ -708,7 +714,7 @@ double PayoffStructure(
             ExistHistoryFlag = 1;
 
             RateTermTemp[0] = (double)Leg_Inform->DaysForwardStart[CashFlowIdx];
-            RateTermTemp[1] = (double)Leg_Inform->DaysForwardStart[min(CashFlowIdx+1, SimulatedRateShape1-1)];
+            RateTermTemp[1] = (double)Leg_Inform->DaysForwardStart[min(CashFlowIdx + 1, SimulatedRateShape1 - 1)];
 
             Payoff = 0.0;
             NumAccrual = NDays;     // 100% Accrual부터 시작
@@ -728,7 +734,7 @@ double PayoffStructure(
                 CondMultiple = Leg_Inform->Reference_Inform[i].RefRateCondMultiple;
                 PayoffMultiple = Leg_Inform->Reference_Inform[i].PayoffMultiple;
                 N = NDays;
-                
+
                 if (Leg_Inform->AccrualFlag == 1)
                 {
                     for (j = Leg_Inform->DaysForwardStart[CashFlowIdx]; j < Leg_Inform->DaysForwardEnd[CashFlowIdx]; j++)
@@ -760,7 +766,7 @@ double PayoffStructure(
 
         }
     }
-    
+
     return Payoff * dt;
 }
 
@@ -790,7 +796,7 @@ long Simulate_HW(
     long j;
     long k;
     long idx0, idx1, idx2, idx3, idx4;
-    long idxrcv, idxrcv2, idxrcv3, idxpay, idxpay2, idxpay3 ;
+    long idxrcv, idxrcv2, idxrcv3, idxpay, idxpay2, idxpay3;
 
     long n;
     long nAccrual = 0;
@@ -822,11 +828,11 @@ long Simulate_HW(
     double** PayDailyRate = (double**)malloc(sizeof(double*) * PayLeg->NReference);             // 2
     if (Simul->DailySimulFlag == 1)
     {
-        for (i = 0; i < RcvLeg->NReference; i++) RcvDailyRate[i] = (double*)malloc(sizeof(double) * (Simul->DaysForSimul[Simul->NDays - 1] + 1));             
-        for (i = 0; i < PayLeg->NReference; i++) PayDailyRate[i] = (double*)malloc(sizeof(double) * (Simul->DaysForSimul[Simul->NDays - 1] + 1));             
+        for (i = 0; i < RcvLeg->NReference; i++) RcvDailyRate[i] = (double*)malloc(sizeof(double) * (Simul->DaysForSimul[Simul->NDays - 1] + 1));
+        for (i = 0; i < PayLeg->NReference; i++) PayDailyRate[i] = (double*)malloc(sizeof(double) * (Simul->DaysForSimul[Simul->NDays - 1] + 1));
     }
 
-    double* RcvPayoff = (double*)malloc((RcvLeg->NCashFlow + 1)* sizeof(double));             // 3
+    double* RcvPayoff = (double*)malloc((RcvLeg->NCashFlow + 1) * sizeof(double));             // 3
     double* PayPayoff = (double*)malloc((PayLeg->NCashFlow + 1) * sizeof(double));             // 4
     long* RcvCFFlag = (long*)malloc(RcvLeg->NCashFlow * sizeof(long));             // 5
     long* PayCFFlag = (long*)malloc(RcvLeg->NCashFlow * sizeof(long));             // 6
@@ -835,8 +841,8 @@ long Simulate_HW(
     PayPrice = 0.0;
     double SOFRDailyCompound = 0.0;
 
-    double* RcvOutputRate = (double*)malloc(RcvLeg->NReference* sizeof(double));
-    double* PayOutputRate = (double*)malloc(PayLeg->NReference* sizeof(double));
+    double* RcvOutputRate = (double*)malloc(RcvLeg->NReference * sizeof(double));
+    double* PayOutputRate = (double*)malloc(PayLeg->NReference * sizeof(double));
 
 
     ////////////////
@@ -928,7 +934,7 @@ long Simulate_HW(
                     for (n = 0; n < Simul->NAsset; n++)
                     {
                         xt_lsmc[0] = SimulShortRate[n][j];
-                        xt_lsmc[1] = SimulShortRate[n][j+1];
+                        xt_lsmc[1] = SimulShortRate[n][j + 1];
                         xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
                         X[idxoption][i][n] = xt_interp;
                     }
@@ -967,7 +973,7 @@ long Simulate_HW(
                                 T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
                                 Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
                             }
                             else
                             {
@@ -977,11 +983,11 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
 
                                 Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j]);
+                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1010,7 +1016,7 @@ long Simulate_HW(
                                 T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
                                 Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
                             }
                             else
                             {
@@ -1019,11 +1025,11 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
 
                                 Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j]);
+                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1034,7 +1040,7 @@ long Simulate_HW(
                         }
                     }
                 }
-            }            
+            }
         }
 
         for (j = 0; j < RcvLeg->NCashFlow; j++) RcvCFFlag[j] = 0;
@@ -1090,7 +1096,7 @@ long Simulate_HW(
                 Pt = 1.0;
                 PtT = HW_Information->Rcv_DF_0_T[j];
             }
-            
+
             PricePath_Rcv += Pt * PtT * RcvPayoff[j];
 
             for (n = 0; n < RcvLeg->NReference; n++)
@@ -1100,7 +1106,7 @@ long Simulate_HW(
             ResultRcv[3 * RcvLeg->NCashFlow + j] += ((double)nAccrual) / (double)Simul->NSimul;
             ResultRcv[4 * RcvLeg->NCashFlow + j] += RcvPayoff[j] / (double)Simul->NSimul;
             ResultRcv[5 * RcvLeg->NCashFlow + j] += Pt * PtT / (double)Simul->NSimul;
-            
+
             if (RcvLeg->OptionUseFlag == 1)
             {
                 ///////////////////////////////////////////////////////////////////
@@ -1190,7 +1196,7 @@ long Simulate_HW(
                                 T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
                                 Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
                             }
                             else
                             {
@@ -1200,11 +1206,11 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
 
                                 Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j]);
+                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1233,7 +1239,7 @@ long Simulate_HW(
                                 T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
                                 Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
                             }
                             else
                             {
@@ -1242,11 +1248,11 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
 
                                 Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j]);
+                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1375,7 +1381,7 @@ long Simulate_HW(
                         Value_By_OptTime[i] = -Y[n][i];
                     }
                 }
-                else 
+                else
                 {
                     if (Y[n][i] > 0.0 && Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
                     {
@@ -1411,7 +1417,7 @@ long Simulate_HW(
                 for (j = 0; j < Simul->NAsset; j++)
                 {
                     EstOptValue += Beta[j] * X[idxoption][i][j];
-                    EstOptValue += Beta[Simul->NAsset+ 1 + j] * (X[idxoption][i][j] * X[idxoption][i][j]);
+                    EstOptValue += Beta[Simul->NAsset + 1 + j] * (X[idxoption][i][j] * X[idxoption][i][j]);
                 }
 
                 if (RcvLeg->OptionType == 1)
@@ -1517,7 +1523,7 @@ long IRStructuredSwap(
     double* ResultPay                   // 
 )
 {
-    long i, j,k;
+    long i, j, k;
     long idx0, idx1, idx2, idx3;
     long ResultCode = 0;
 
@@ -1547,16 +1553,9 @@ long IRStructuredSwap(
 
     long* CurveIdx_Rcv = (long*)malloc(sizeof(long) * RcvLeg->NReference);
     long* CurveIdx_Pay = (long*)malloc(sizeof(long) * PayLeg->NReference);
-    for (i = 0; i < RcvLeg->NReference; i++)
-    {
-        CurveIdx_Rcv[i] = FindIndex(RcvLeg->Reference_Inform[i].CurveNum, Simul->SimulCurveIdx, Simul->NAsset);
-    }
+    for (i = 0; i < RcvLeg->NReference; i++) CurveIdx_Rcv[i] = FindIndex(RcvLeg->Reference_Inform[i].CurveNum, Simul->SimulCurveIdx, Simul->NAsset);
 
-    for (i = 0; i < PayLeg->NReference; i++)
-    {
-        CurveIdx_Pay[i] = FindIndex(PayLeg->Reference_Inform[i].CurveNum, Simul->SimulCurveIdx, Simul->NAsset);
-    }
-
+    for (i = 0; i < PayLeg->NReference; i++) CurveIdx_Pay[i] = FindIndex(PayLeg->Reference_Inform[i].CurveNum, Simul->SimulCurveIdx, Simul->NAsset);
 
     double Rcv_DF_Day1Y;
     double Pay_DF_Day1Y;
@@ -1568,12 +1567,12 @@ long IRStructuredSwap(
 
     long CurveIdx_DiscRcv = FindIndex(RcvLeg->DiscCurveNum, Simul->SimulCurveIdx, Simul->NAsset);
     long CurveIdx_DiscPay = FindIndex(PayLeg->DiscCurveNum, Simul->SimulCurveIdx, Simul->NAsset);
- 
+
     double* Rcv_DF_0_t = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double* Rcv_DF_0_T = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double* Rcv_DF_t_T = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double t, T;
-    idx1 = 0; 
+    idx1 = 0;
     idx2 = 0;
     for (i = 0; i < RcvLeg->NCashFlow; i++)
     {
@@ -1637,11 +1636,13 @@ long IRStructuredSwap(
     double*** RcvRef_DF_t_T = (double***)malloc(sizeof(double) * RcvLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_QVTerm = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_dt = (double***)malloc(sizeof(double**) * RcvLeg->NReference);
 
     long* ndates_Rcv_PowerSpread = (long*)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_DF_t_T_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_QVTerm_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_dt_PowerSpread = (double***)malloc(sizeof(double**) * RcvLeg->NReference);
 
     for (i = 0; i < RcvLeg->NReference; i++)
     {
@@ -1679,10 +1680,13 @@ long IRStructuredSwap(
         RcvRef_DF_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_B_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_QVTerm[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
-;
+        RcvRef_dt[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+
         RcvRef_DF_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_B_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_QVTerm_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        RcvRef_dt_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+
         if (RcvLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
             if (RcvLeg->Reference_Inform[i].RefRateType == 0)
@@ -1693,8 +1697,9 @@ long IRStructuredSwap(
                     RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ncpn);
                 }
-                 
+
                 idxT1 = RcvLeg->CurrentIdx;
                 DayT1 = RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx];
                 T1 = ((double)DayT1) / Rcv_DF_Day1Y;
@@ -1705,10 +1710,10 @@ long IRStructuredSwap(
                 {
                     t = ((double)Simul->DaysForSimul[j]) / Rcv_DF_Day1Y;
                     idxfrdstart = FindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, &idx3);
-                    if (idxfrdstart >= 0) T1 = ((double)RcvLeg->DaysForwardEnd[idxfrdstart] )/ Rcv_DF_Day1Y;;
+                    if (idxfrdstart >= 0) T1 = ((double)RcvLeg->DaysForwardEnd[idxfrdstart]) / Rcv_DF_Day1Y;;
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx1);
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
-
+                    RcvRef_dt[i][j][0] = T1 - t;
                     RcvRef_DF_t_T[i][j][0] = DF_0_T / DF_0_t;
                     RcvRef_B_t_T[i][j][0] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
                     RcvRef_QVTerm[i][j][0] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1721,19 +1726,21 @@ long IRStructuredSwap(
                 for (j = 0; j < Simul->NDays; j++)
                 {
                     t = ((double)(Simul->DaysForSimul[j])) / Rcv_DF_Day1Y;
-                    
+
                     ndates = ndates_Rcv[i];
-                    
+
                     term = 1.0 / ((double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
-                    
+
                     RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                     idx1 = 0;
                     for (k = 0; k < ndates; k++)
-                    {                        
-                        T1 = t + term * ((double)k + 1.0) ;
+                    {
+                        T1 = t + term * ((double)k + 1.0);
+                        RcvRef_dt[i][j][k] = term;
                         DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
                         RcvRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                         RcvRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1755,11 +1762,13 @@ long IRStructuredSwap(
                 RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                 DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                 idx1 = 0;
                 for (k = 0; k < ndates; k++)
                 {
-                    T1 = t + term * ((double)k + 1.0) ;
+                    T1 = t + term * ((double)k + 1.0);
+                    RcvRef_dt[i][j][k] = term;
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
                     RcvRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                     RcvRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1771,10 +1780,12 @@ long IRStructuredSwap(
                 RcvRef_DF_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 RcvRef_B_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 RcvRef_QVTerm_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                RcvRef_dt_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 idx2 = 0;
                 for (k = 0; k < ndates2; k++)
                 {
-                    T1 = t + term * ((double)k + 1.0) ;
+                    T1 = t + term * ((double)k + 1.0);
+                    RcvRef_dt_PowerSpread[i][j][k] = term;
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
                     RcvRef_DF_t_T_PowerSpread[i][j][k] = DF_0_T / DF_0_t;
                     RcvRef_QVTerm_PowerSpread[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1788,11 +1799,13 @@ long IRStructuredSwap(
     double*** PayRef_DF_t_T = (double***)malloc(sizeof(double) * PayLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_QVTerm = (double***)malloc(sizeof(double) * PayLeg->NReference);
-    
+    double*** PayRef_dt = (double***)malloc(sizeof(double**) * PayLeg->NReference);
+
     long* ndates_Pay_PowerSpread = (long*)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_DF_t_T_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_QVTerm_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);
+    double*** PayRef_dt_PowerSpread = (double***)malloc(sizeof(double**) * PayLeg->NReference);
 
     for (i = 0; i < PayLeg->NReference; i++)
     {
@@ -1829,10 +1842,12 @@ long IRStructuredSwap(
         PayRef_DF_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_B_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_QVTerm[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
-        ;
+        PayRef_dt[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+
         PayRef_DF_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_B_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_QVTerm_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        PayRef_dt_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         if (PayLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
             if (PayLeg->Reference_Inform[i].RefRateType == 0)
@@ -1843,6 +1858,7 @@ long IRStructuredSwap(
                     PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ncpn);
                 }
 
                 idxT1 = PayLeg->CurrentIdx;
@@ -1854,11 +1870,11 @@ long IRStructuredSwap(
                 for (j = 0; j < Simul->NDays; j++)
                 {
                     t = ((double)Simul->DaysForSimul[j]) / Pay_DF_Day1Y;
-                    idxfrdstart = FindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow,&idx3);
+                    idxfrdstart = FindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, &idx3);
                     if (idxfrdstart >= 0) T1 = ((double)PayLeg->DaysForwardEnd[idxfrdstart]) / Pay_DF_Day1Y;;
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx1);
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
-
+                    PayRef_dt[i][j][0] = T1 - t;
                     PayRef_DF_t_T[i][j][0] = DF_0_T / DF_0_t;
                     PayRef_B_t_T[i][j][0] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
                     PayRef_QVTerm[i][j][0] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1878,11 +1894,14 @@ long IRStructuredSwap(
                     PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
+
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                     idx1 = 0;
                     for (k = 0; k < ndates; k++)
                     {
-                        T1 = t + term * ((double)k + 1.0) ;
+                        T1 = t + term * ((double)k + 1.0);
+                        PayRef_dt[i][j][k] = term;
                         DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
                         PayRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                         PayRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1904,11 +1923,13 @@ long IRStructuredSwap(
                 PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                 DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                 idx1 = 0;
                 for (k = 0; k < ndates; k++)
                 {
-                    T1 = t + term * ((double)k + 1.0) ;
+                    T1 = t + term * ((double)k + 1.0);
+                    PayRef_dt[i][j][k] = term;
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
                     PayRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                     PayRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1920,10 +1941,12 @@ long IRStructuredSwap(
                 PayRef_DF_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 PayRef_B_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 PayRef_QVTerm_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                PayRef_dt_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 idx2 = 0;
                 for (k = 0; k < ndates2; k++)
                 {
-                    T1 = t + term * ((double)k + 1.0) ;
+                    T1 = t + term * ((double)k + 1.0);
+                    PayRef_dt_PowerSpread[i][j][k] = term;
                     DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
                     PayRef_DF_t_T_PowerSpread[i][j][k] = DF_0_T / DF_0_t;
                     PayRef_QVTerm_PowerSpread[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
@@ -1956,29 +1979,32 @@ long IRStructuredSwap(
     HW_information->B_t_T_PayDisc = B_t_T_PayDisc;
     HW_information->QVTerm_RcvDisc = QVTerm_RcvDisc;
     HW_information->QVTerm_PayDisc = QVTerm_PayDisc;
-    
     HW_information->NRcvCurve = RcvLeg->NReference;
     HW_information->NPayCurve = RcvLeg->NReference;
 
     HW_information->ndates_cpn_rcv = ndates_Rcv;
     HW_information->RcvRef_DF_t_T = RcvRef_DF_t_T;
     HW_information->RcvRef_B_t_T = RcvRef_B_t_T;
-    HW_information->RcvRef_QVTerm= RcvRef_QVTerm;
+    HW_information->RcvRef_QVTerm = RcvRef_QVTerm;
+    HW_information->RcvRef_dt = RcvRef_dt;
 
     HW_information->ndates_cpn_powerspread_rcv = ndates_Rcv_PowerSpread;
     HW_information->RcvRef_DF_t_T_PowerSpread = RcvRef_DF_t_T_PowerSpread;
     HW_information->RcvRef_B_t_T_PowerSpread = RcvRef_B_t_T_PowerSpread;
     HW_information->RcvRef_QVTerm_PowerSpread = RcvRef_QVTerm_PowerSpread;
+    HW_information->RcvRef_dt_PowerSpread = RcvRef_dt_PowerSpread;
 
     HW_information->ndates_cpn_pay = ndates_Pay;
     HW_information->PayRef_DF_t_T = PayRef_DF_t_T;
     HW_information->PayRef_B_t_T = PayRef_B_t_T;
     HW_information->PayRef_QVTerm = PayRef_QVTerm;
+    HW_information->PayRef_dt = PayRef_dt;
 
     HW_information->ndates_cpn_powerspread_pay = ndates_Pay_PowerSpread;
     HW_information->PayRef_DF_t_T_PowerSpread = PayRef_DF_t_T_PowerSpread;
     HW_information->PayRef_B_t_T_PowerSpread = PayRef_B_t_T_PowerSpread;
     HW_information->PayRef_QVTerm_PowerSpread = PayRef_QVTerm_PowerSpread;
+    HW_information->PayRef_dt_PowerSpread = PayRef_dt_PowerSpread;
 
 
     ResultCode = Simulate_HW(1, PricingDateC, NAFlag, Notional, RcvLeg, PayLeg,
@@ -2051,6 +2077,7 @@ long IRStructuredSwap(
                 free(RcvRef_DF_t_T[i][j]);
                 free(RcvRef_B_t_T[i][j]);
                 free(RcvRef_QVTerm[i][j]);
+                free(RcvRef_dt[i][j]);
             }
         }
         else
@@ -2060,30 +2087,36 @@ long IRStructuredSwap(
                 free(RcvRef_DF_t_T[i][j]);
                 free(RcvRef_B_t_T[i][j]);
                 free(RcvRef_QVTerm[i][j]);
+                free(RcvRef_dt[i][j]);
+
                 free(RcvRef_DF_t_T_PowerSpread[i][j]);
                 free(RcvRef_B_t_T_PowerSpread[i][j]);
                 free(RcvRef_QVTerm_PowerSpread[i][j]);
+                free(RcvRef_dt_PowerSpread[i][j]);
             }
 
         }
         free(RcvRef_DF_t_T[i]);
-        free(RcvRef_B_t_T[i]); 
-        free(RcvRef_QVTerm[i]); 
-        
+        free(RcvRef_B_t_T[i]);
+        free(RcvRef_QVTerm[i]);
+        free(RcvRef_dt[i]);
+
         free(RcvRef_DF_t_T_PowerSpread[i]);
         free(RcvRef_B_t_T_PowerSpread[i]);
         free(RcvRef_QVTerm_PowerSpread[i]);
+        free(RcvRef_dt_PowerSpread[i]);
     }
 
     free(RcvRef_DF_t_T);
     free(RcvRef_B_t_T);
     free(RcvRef_QVTerm);
+    free(RcvRef_dt);
 
     free(RcvRef_DF_t_T_PowerSpread);
     free(RcvRef_B_t_T_PowerSpread);
     free(RcvRef_QVTerm_PowerSpread);
-
-//
+    free(RcvRef_dt_PowerSpread);
+    //
     for (i = 0; i < PayLeg->NReference; i++)
     {
         if (PayLeg->Reference_Inform[i].PowerSpreadFlag == 0)
@@ -2093,6 +2126,7 @@ long IRStructuredSwap(
                 free(PayRef_DF_t_T[i][j]);
                 free(PayRef_B_t_T[i][j]);
                 free(PayRef_QVTerm[i][j]);
+                free(PayRef_dt[i][j]);
             }
         }
         else
@@ -2102,28 +2136,36 @@ long IRStructuredSwap(
                 free(PayRef_DF_t_T[i][j]);
                 free(PayRef_B_t_T[i][j]);
                 free(PayRef_QVTerm[i][j]);
+                free(PayRef_dt[i][j]);
+
                 free(PayRef_DF_t_T_PowerSpread[i][j]);
                 free(PayRef_B_t_T_PowerSpread[i][j]);
                 free(PayRef_QVTerm_PowerSpread[i][j]);
+                free(PayRef_dt_PowerSpread[i][j]);
             }
 
         }
         free(PayRef_DF_t_T[i]);
         free(PayRef_B_t_T[i]);
         free(PayRef_QVTerm[i]);
+        free(PayRef_dt[i]);
 
         free(PayRef_DF_t_T_PowerSpread[i]);
         free(PayRef_B_t_T_PowerSpread[i]);
         free(PayRef_QVTerm_PowerSpread[i]);
+        free(PayRef_dt_PowerSpread[i]);
     }
 
     free(PayRef_DF_t_T);
     free(PayRef_B_t_T);
     free(PayRef_QVTerm);
+    free(PayRef_dt);
 
     free(PayRef_DF_t_T_PowerSpread);
     free(PayRef_B_t_T_PowerSpread);
     free(PayRef_QVTerm_PowerSpread);
+    free(PayRef_dt_PowerSpread);
+
     free(ndates_Rcv);
     free(ndates_Pay);
     free(ndates_Rcv_PowerSpread);
@@ -2200,7 +2242,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long* OptionDateAndFlag,            // 52 [0~NOption-1]옵션행사일, [NOption~2NOption-1]행사조건Flag, [2NOption~3NOption-1]옵션Type
     double* OptionKAndRange,            // 53 [0~NOption-1]옵션행사가격% [NOption~7NOption-1] Ref1~3 Range상한 및 하한 
 
-    double* ResultPrice,                // 54 산출된 가격 [0] Rcv [1] Pay [2] Price
+    double* ResultPrice,                // 54 산출된 가격 [0] Rcv [1] Pay [2] Price [3] OptionPrice [4~
     double* ResultRcv,                  // 55 [0~NCF-1]금리1, [NCF~2NCF-1]금리2, [2NCF~3NCF-1]금리3, [3NCF~4NCF-1] E(Accrual수), [4NCF~5NCF-1] E(CPN), [5NCF~6NCF-1] E(DF)
     double* ResultPay,                  // 56 [0~NCF-1]금리1, [NCF~2NCF-1]금리2, [2NCF~3NCF-1]금리3, [3NCF~4NCF-1] E(Accrual수), [4NCF~5NCF-1] E(CPN), [5NCF~6NCF-1] E(DF)
     char* Error                         // 57 에러메시지
@@ -2226,6 +2268,10 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         HWVolTermArray, HWVolArray, HWKappaArray, NZeroRate, ZeroTerm,
         ZeroRate, Corr, NDayHistRcv, RateHistDateRcv, RateHistRcv,
         NDayHistPay, RateHistDatePay, RateHistPay, NSimul, GreekFlag, Error);
+    
+    double* ResultPV01 = ResultPrice + 4;
+    double* ResultKeyPV01 = ResultPV01 + 8;
+    
 
     if (ErrorCode < 0) return -1;
 
@@ -2730,6 +2776,97 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
 
     ResultCode = IRStructuredSwap(PriceDateC, NAFlag, Notional, RcvLeg, PayLeg, Simul, GreekFlag, ResultPrice, ResultRcv, ResultPay);
 
+    if (GreekFlag == 1)
+    {
+        long idxtemp = 0;
+        long kk = 0;
+        long NTotalZeroRate = 0;
+        long PointerZero[5] = { 0,0,0,0,0 };
+        long idxstart, idxend;
+        double RcvValue, PayValue;
+        double PV01Rcv, PV01Pay;
+        double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
+        double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
+        double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
+
+        RcvValue = ResultPrice[0];
+        PayValue = ResultPrice[1];
+        for (i = 0; i < N_Curve_Max; i++)
+        {
+            NTotalZeroRate += NZeroRate[i];
+            PointerZero[i + 1] = NTotalZeroRate;
+        }
+
+        double* ZeroRateParallelUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
+        double* ZeroRateKeyUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
+        double** ZeroRateMatrixParralelUp = (double**)malloc(sizeof(double*) * N_Curve_Max);
+        n = 0;
+        for (i = 0; i < N_Curve_Max; i++)
+        {
+            ZeroRateMatrixParralelUp[i] = ZeroRateParallelUp + n;
+            n = n + NZeroRate[i];
+        }
+
+        SIMUL_INFO* Simul_ForGreek = new SIMUL_INFO;
+        Simul_ForGreek->NSimul = Simul->NSimul;
+        Simul_ForGreek->DailySimulFlag= Simul->DailySimulFlag;
+        Simul_ForGreek->NDays = Simul->NDays;
+        Simul_ForGreek->NAsset = Simul->NAsset;
+        Simul_ForGreek->DaysForSimul = Simul->DaysForSimul;
+
+        Simul_ForGreek->dt_Array = Simul->dt_Array;
+        Simul_ForGreek->T_Array = Simul->T_Array;
+        Simul_ForGreek->FixedRandn = FixedRandn;
+        Simul_ForGreek->NHWVol = Simul->NHWVol ;
+        Simul_ForGreek->HWKappa = Simul->HWKappa;
+        Simul_ForGreek->HWVolTerm  = Simul->HWVolTerm ;
+        Simul_ForGreek->HWVol = Simul->HWVol  ;
+        Simul_ForGreek->NRateTerm  = Simul->NRateTerm ;
+        Simul_ForGreek->RateTerm = Simul->RateTerm ;
+        Simul_ForGreek->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
+        Simul_ForGreek->SimulCurveIdx = SimulateCurveIdx;
+        k = 0;
+        for (i = 1; i < N_Curve_Max + 1; i++)
+        {
+            if (isin(i, Simul->SimulCurveIdx, Simul->NAsset))
+            {
+                idxstart = PointerZero[i - 1];
+                idxend = PointerZero[i];
+
+                for (j = 0; j < NTotalZeroRate; j++)
+                {
+                    if (j >= idxstart && j < idxend) ZeroRateParallelUp[j] = ZeroRate[j] + 0.0001;
+                    else ZeroRateParallelUp[j] = ZeroRate[j];                  
+                }
+
+
+                kk = 0;
+                for (idxtemp = 0; idxtemp < N_Curve_Max; idxtemp++)
+                {
+                    if (isin(idxtemp + 1, SimulateCurveIdx, nSimulateCurve))
+                    {
+                        Simul_ForGreek->Rate[kk] = ZeroRateMatrixParralelUp[idxtemp];
+                        kk = kk + 1;
+                    }
+                }
+
+                ResultCode = IRStructuredSwap(PriceDateC, NAFlag, Notional, RcvLeg, PayLeg, Simul_ForGreek, GreekFlag, TempResultPrice, TempResultRcv, TempResultPay);
+
+                PV01Rcv = TempResultPrice[0] - RcvValue;
+                PV01Pay = TempResultPrice[1] - PayValue;
+                ResultPV01[i - 1] = PV01Rcv;
+                ResultPV01[i - 1 + 4] = PV01Pay;
+                k = k + 1;
+            }
+        }
+        free(TempResultRcv);
+        free(TempResultPay);
+        free(ZeroRateParallelUp);
+        free(ZeroRateKeyUp);
+        free(ZeroRateMatrixParralelUp);
+        free(Simul_ForGreek->Rate);
+        delete(Simul_ForGreek);
+    }
 
     free(HWVolTermMatrix);
     free(HWVolMatrix);
