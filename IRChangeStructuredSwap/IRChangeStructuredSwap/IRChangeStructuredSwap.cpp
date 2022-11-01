@@ -2779,16 +2779,20 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     if (GreekFlag == 1)
     {
         long idxtemp = 0;
+        long idxtermup = 0;
         long kk = 0;
+        long h = 0;
         long NTotalZeroRate = 0;
         long PointerZero[5] = { 0,0,0,0,0 };
         long idxstart, idxend;
+        long UselessTermFlag = 0;
         double RcvValue, PayValue;
         double PV01Rcv, PV01Pay;
         double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
         double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
         double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
-
+        double* KeyPV01Rcv;
+        double* KeyPV01Pay;
         RcvValue = ResultPrice[0];
         PayValue = ResultPrice[1];
         for (i = 0; i < N_Curve_Max; i++)
@@ -2859,6 +2863,62 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
                 k = k + 1;
             }
         }
+
+        k = 0;
+        for (i = 1; i < N_Curve_Max + 1; i++)
+        {
+            KeyPV01Rcv = ResultKeyPV01 + PointerZero[i - 1];
+            KeyPV01Pay = ResultKeyPV01 + NTotalZeroRate + PointerZero[i - 1];
+            if (isin(i, Simul->SimulCurveIdx, Simul->NAsset))
+            {
+                idxstart = PointerZero[i - 1];
+                idxend = PointerZero[i];
+                for (idxtermup = idxstart; idxtermup < idxend; idxtermup++)
+                {
+                    for (j = 0; j < NTotalZeroRate; j++)
+                    {
+                        if (j == idxtermup) ZeroRateParallelUp[j] = ZeroRate[j] + 0.0001;
+                        else ZeroRateParallelUp[j] = ZeroRate[j];
+                    }
+
+                    kk = 0;
+                    for (idxtemp = 0; idxtemp < N_Curve_Max; idxtemp++)
+                    {
+                        if (isin(idxtemp + 1, SimulateCurveIdx, nSimulateCurve))
+                        {
+                            Simul_ForGreek->Rate[kk] = ZeroRateMatrixParralelUp[idxtemp];
+                            kk = kk + 1;
+                        }
+                    }
+
+                    UselessTermFlag = 0;
+                    if (NZeroRate[i] > 2)
+                    {
+                        ////////////////////////////////////////////////////
+                        // 스왑 만기보다 너무 Term이 길면 노트 가격 영향 없다
+                        ////////////////////////////////////////////////////
+                        if (ZeroTerm[idxtermup - 1] > Simul_ForGreek->T_Array[Simul_ForGreek->NDays - 1]) UselessTermFlag = 1;
+                    }
+
+                    if (UselessTermFlag == 1)
+                    {
+                        KeyPV01Rcv[idxtermup - idxstart] = 0.0;
+                        KeyPV01Pay[idxtermup - idxstart] = 0.0;
+                    }
+                    else
+                    {
+                        ResultCode = IRStructuredSwap(PriceDateC, NAFlag, Notional, RcvLeg, PayLeg, Simul_ForGreek, GreekFlag, TempResultPrice, TempResultRcv, TempResultPay);
+
+                        PV01Rcv = TempResultPrice[0] - RcvValue;
+                        PV01Pay = TempResultPrice[1] - PayValue;
+                        KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                        KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                    }
+                    k = k + 1;
+                }
+            }
+        }
+
         free(TempResultRcv);
         free(TempResultPay);
         free(ZeroRateParallelUp);
