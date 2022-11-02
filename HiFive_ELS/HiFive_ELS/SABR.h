@@ -245,6 +245,7 @@ void Levenberg_Marquardt_SABR(
 	double ErrorSquareSum = 100000.0;
 	double PrevErrorSquareSum = 0.0;
 	double ParamSum = 0.0;
+	double minerror = 1000000.0;
 	double lambda[1] = { 1.00 };
 	double* NextParams = make_array(NParams);
 	double** JT_J = make_array(NParams, NParams);
@@ -252,6 +253,8 @@ void Levenberg_Marquardt_SABR(
 	double** JT_Res = make_array(NParams, 1);
 	double** ResultMatrix = make_array(NParams, 1);
 	double FirstErrorSquare = 1.0;
+	double* argminparam = make_array(NParams);
+	double* argminvol = make_array(NResidual);
 	for (n = 0; n < 50; n++)
 	{
 		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, NTermFutures, TermFuturesArray, FuturesArray);
@@ -260,7 +263,16 @@ void Levenberg_Marquardt_SABR(
 
 		if (n == 0) FirstErrorSquare = ErrorSquareSum + 0.0;
 
-		if (n >= 1) NextLambda(ErrorSquareSum, PrevErrorSquareSum, lambda, BreakFlag);
+		if (n >= 1)
+		{
+			NextLambda(ErrorSquareSum, PrevErrorSquareSum, lambda, BreakFlag);
+			if (ErrorSquareSum < minerror || n == 1)
+			{
+				minerror = ErrorSquareSum;
+				for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+				for (i = 0; i < NResidual; i++) argminvol[i] = SABRVolNew[i];
+			}
+		}
 
 		Levenberg_Marquardt_SABR(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
 		for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
@@ -271,6 +283,10 @@ void Levenberg_Marquardt_SABR(
 		PrevErrorSquareSum = ErrorSquareSum;
 	}
 
+
+	for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
+	for (i = 0; i < NResidual; i++) SABRVolNew[i] = argminvol[i];
+
 	free(NextParams);
 	for (i = 0; i < NParams; i++) free(JT_J[i]);
 	for (i = 0; i < NParams; i++) free(Inverse_JT_J[i]);
@@ -280,7 +296,8 @@ void Levenberg_Marquardt_SABR(
 	free(JT_Res);
 	for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
 	free(ResultMatrix);
-
+	free(argminparam);
+	free(argminvol);
 }
 
 void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, double* Vol, long NTermFutures, double* TermFuturesArray, double* FuturesArray, double Beta, double* Params, double* ResultLocVol)

@@ -1976,7 +1976,7 @@ void Levenberg_Marquardt_HWSwaption(
             if (n >= 1)
             {
                 NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
-                if (absErrorSum < minerror)
+                if (absErrorSum < minerror || n == 1)
                 {
                     minerror = absErrorSum;
                     for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
@@ -2012,7 +2012,7 @@ void Levenberg_Marquardt_HWSwaption(
             if (n >= 1)
             {
                 NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
-                if (absErrorSum < minerror)
+                if (absErrorSum < minerror || n == 1)
                 {
                     minerror = absErrorSum;
                     for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
@@ -2038,7 +2038,7 @@ void Levenberg_Marquardt_HWSwaption(
     free(JT_Res);
     for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
     free(ResultMatrix);
-
+    free(argminparam);
 }
 
 
