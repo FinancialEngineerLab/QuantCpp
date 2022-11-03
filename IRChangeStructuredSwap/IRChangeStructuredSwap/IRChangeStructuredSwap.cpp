@@ -29,6 +29,23 @@ DLLEXPORT(long) isin(long x, long* array, long narray)
     return s;
 }
 
+long isin(long x, long* array, long narray, long& startidx)
+{
+    long i;
+    long s = 0;
+    for (i = startidx; i < narray; i++)
+    {
+        if (x == array[i])
+        {
+            s = 1;
+            startidx = i;
+            break;
+        }
+    }
+    return s;
+}
+
+
 long isinFindIndex(long x, long* array, long narray, long& Idx)
 {
     long i;
@@ -82,6 +99,31 @@ long isbetweenFindIndex(long x, long* array, long narray, long& idx)
         }
     }
     return s;
+}
+
+long isweekend(long ExlDate)
+{
+    // 나머지 1이면 일요일, 2이면 월요일, 3이면 화요일, 4이면 수요일, 5이면 목요일, 6이면 금요일, 0이면 토요일
+    long MOD7;
+    if (ExlDate > 0)
+    {
+        MOD7 = ExlDate % 7;
+        if (MOD7 == 1 || MOD7 == 0) return 1;
+    }
+    return 0;
+}
+
+void LockOutCheck(long& LockOutFlag, long LockOutDay, long Today, double& LockOutDayRate, double& ForwardRate)
+{
+    if (LockOutFlag == 1) ForwardRate = LockOutDayRate + 0.0;
+    else
+    {
+        if (LockOutDay <= Today)
+        {
+            LockOutDayRate = ForwardRate + 0.0;
+            LockOutFlag = 1;
+        }
+    }
 }
 
 long FindIndex(
@@ -239,6 +281,11 @@ typedef struct LegInfo {
     long** RateHistoryDateMatrix;       // 과거 레퍼런스 History Date Matrix
     double** RateHistoryMatrix;         // 과거 레퍼런스 History Rate Matrix
 
+    long* NWeekend;                     // CashFlow 시점별 주말개수
+    long** Weekend;                     // 토, 일 Array shape = NCashFlow * NWeekend[i]
+    double* SOFR_Annualized_R0;         // 첫 Cpn의 Annualized Rate
+    double* SOFR_Compound0;             // 첫 Cpn의 Compound Value
+
     // 옵션관련 데이터
     long OptionUseFlag;                 // 옵션 사용여부
     long NOption;                       // 옵션 개수
@@ -270,7 +317,7 @@ typedef struct SimulationInfo {
     double** RateTerm;
     double** Rate;
     long* SimulCurveIdx;
-
+    long SOFRBusinessDaySimul;
 }SIMUL_INFO;
 
 // Linear Interpolation (X변수, Y변수, X길이, 타겟X)
@@ -301,6 +348,1124 @@ double Interpolate_Linear_Pointer(double* x, double* fx, long nx, double targetx
         }
         return result;
     }
+}
+
+double SOFR_ForwardRate_Compound(
+    long NRefCrvTerm,
+    double* RefCrvTerm,
+    double* RefCrvRate,
+    long ForwardStartIdx,
+    long ForwardEndIdx,
+    long LockOutDays,
+    long LookBackDays,
+    long ObservShift,
+    long HolidayFlag,
+    long NHoliday,
+    long* Holiday,
+    long NSaturSunDay,
+    long* SaturSunDay,
+    long UseHistorySOFR,
+    long NRefHistory,
+    long* RefHistoryDate,
+    double* RefHistory,
+    double denominator,
+    double& AnnualizedOISRate,
+    long SOFRUseFlag
+)
+{
+    long i;
+    long j;
+    long k;
+    long n;
+
+    long nday = ForwardEndIdx - ForwardStartIdx;
+    long isinflag = 0;
+    long HistDayIdx = 0;
+    long AverageFlag = 0;
+    if (SOFRUseFlag == 3) AverageFlag = 1;
+
+    // 빠른 Holiday찾기용 TimePos Pointer
+    long HoliStartIdx = 0;
+    long HoliStartIdx2 = 0;
+    long SatSunIdx = 0;
+    long SatSunIdx2 = 0;
+
+    long isHolidayFlag = 0;
+    long isHolidayFlag2 = 0;
+
+    long CountHoliday = 0;
+    long CountHoliday2 = 0;
+
+    long TimePos = 0;
+    long TimePos2 = 0;
+
+    double dt = 1.0 / 365.0;
+    double Prev_PI;
+    double ForwardRate;
+
+    double t = 0.0;
+    double PI_0;
+    double T;
+    T = (double)(ForwardEndIdx - ForwardStartIdx) / denominator;
+
+    double CurrentRate;
+    CurrentRate = Interpolate_Linear(RefCrvTerm, RefCrvRate, NRefCrvTerm, dt);
+
+    long ObservShiftFlag = 0;
+    if (LookBackDays > 0 && ObservShift > 0)     ObservShiftFlag = 1;
+
+    ///////////////////////////
+    // Average 키움증권 추가 //
+    ///////////////////////////
+    long NCumpound = 0;
+    double AverageRate = 0.0;
+
+    ///////////////////////////
+    // N영업일 전 LockOutDay 계산
+    ///////////////////////////
+    long LockOutDay = ForwardEndIdx;
+    long LockOutFlag = 0;
+
+    if (LockOutDays > 0)
+    {
+        k = 0;
+        for (i = 1; i < 30; i++)
+        {
+            LockOutDay -= 1;
+            // N영업일까지 날짜 뒤로가기
+            if (max(isin(LockOutDay, Holiday, NHoliday), isin(LockOutDay, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+            if (k == LockOutDays) break;
+        }
+    }
+    double LockOutDayRate = 0.0;
+
+
+    ///////////////////////////
+    // Holiday Rate가 Interpolate일 때 사용할 변수
+    ///////////////////////////
+    double TargetRate[2] = { 0.0,0.0 };
+    double TargetT[2] = { 0.0,0.0 };
+
+    long lookbackday;
+    Prev_PI = 1.0;
+    PI_0 = 1.0;
+    if (UseHistorySOFR == 1 && ObservShiftFlag == 0)
+    {
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Forward Start 날짜가 가격 계산일보다 앞에 있을 경우 History Rate 뒤져봐야함 + Observe Shift 적용 안하는 경우 //
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        HistDayIdx = 0;
+        if (LookBackDays < 1)
+        {
+            ////////////////////////////
+            // LookBack 적용안할 경우 //
+            ////////////////////////////
+            if (ForwardEndIdx >= 0)
+            {
+                if (HolidayFlag == 3)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        isinflag= isinFindIndex(i, RefHistoryDate, NRefHistory, HistDayIdx);
+
+                        if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                        else ForwardRate = CurrentRate;
+
+                        Prev_PI *= 1.0 + ForwardRate * 1.0 / denominator;
+                        AverageRate += ForwardRate;
+
+                        NCumpound += 1;
+                    }
+                }
+                else if (HolidayFlag == 0)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        if (i == ForwardStartIdx) isHolidayFlag = 0;
+                        else isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                        if (isHolidayFlag == 0)
+                        {
+                            isinflag= isinFindIndex(i, RefHistoryDate, NRefHistory, HistDayIdx);
+
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = i + 1; j < 0; j++)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+                            }
+                            Prev_PI *= 1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator;
+                            AverageRate += ForwardRate;
+
+                            NCumpound += 1;
+                        }
+
+                    }
+                }
+                else if (HolidayFlag == 1)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        if (i == ForwardStartIdx) isHolidayFlag = 0;
+                        else isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                        if (isHolidayFlag == 0)
+                        {
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = i + 1; j < ForwardEndIdx; j++)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+                            }
+                            isinflag = isinFindIndex(i + CountHoliday + 1, RefHistoryDate, NRefHistory, HistDayIdx);
+
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            Prev_PI *= 1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator;
+                            AverageRate += ForwardRate;
+
+                            NCumpound += 1;
+                        }
+                    }
+                }
+                if (HolidayFlag == 2)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        if (i == ForwardStartIdx) isHolidayFlag = 0;
+                        else isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                        if (isHolidayFlag == 0)
+                        {
+                            ///////////////////////////////
+                            // 영업일인 경우 당일 이자율 //
+                            ///////////////////////////////
+                            isinflag= isinFindIndex(i, RefHistoryDate, NRefHistory, HistDayIdx);
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+                            CountHoliday = 0;
+                        }
+                        else if (isHolidayFlag == 1 && NRefHistory > 0)
+                        {
+                            ///////////////////////////////////////////////////////////
+                            // 영업일이 아닌 경우 직전, 직후 영업일 ForwardRate 찾기 //
+                            ///////////////////////////////////////////////////////////
+
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = j - 1; j < ForwardStartIdx; j--)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+                            }
+                            isinflag= isinFindIndex(i - CountHoliday - 1, RefHistoryDate, NRefHistory, HistDayIdx);
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            TargetRate[0] = ForwardRate;
+                            TargetT[0] = (-(double)(CountHoliday)-1.0);
+
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = i + 1; j < ForwardEndIdx; j++)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+
+                            }
+                            isinflag = isinFindIndex(i + CountHoliday + 1, RefHistoryDate, NRefHistory, HistDayIdx);
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            TargetRate[1] = ForwardRate;
+                            TargetT[1] = ((double)(CountHoliday)+1.0);
+                            ForwardRate = Interpolate_Linear(TargetT, TargetRate, 2, 0.0);
+                        }
+                        else ForwardRate = CurrentRate;
+
+                        Prev_PI *= 1.0 + ForwardRate * 1.0 / denominator;
+                        AverageRate += ForwardRate;
+
+                        NCumpound += 1;
+                    }
+                }
+            }
+            ////////////////////////////////////////////////////////
+            // 과거 반영 다 끝났으면 ForwardStartIdx 0으로 바꾸기 //
+            ////////////////////////////////////////////////////////
+            ForwardStartIdx = 0;
+        }
+        else if (LookBackDays > 0)
+        {
+            //////////////////////////
+            // LookBack 적용할 경우 //
+            //////////////////////////
+            if (ForwardEndIdx >= 0)
+            {
+                if (HolidayFlag == 3)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        lookbackday = i;
+
+                        k = 0;
+
+                        for (n = 1; n < 120; n++)
+                        {
+                            ///////////////////////////
+                            // N영업일 전 LookBackDay 계산
+                            ///////////////////////////
+                            lookbackday -= 1;
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        isinflag = isinFindIndex(lookbackday, RefHistoryDate, NRefHistory, HistDayIdx);
+                        if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                        else ForwardRate = CurrentRate;
+                        Prev_PI *= 1.0 + ForwardRate * 1.0 / denominator;
+                        AverageRate += ForwardRate;
+
+                        NCumpound += 1;
+                    }
+                }
+                else if (HolidayFlag == 0)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        if (i == ForwardStartIdx) isHolidayFlag = 0;
+                        else isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                        if (isHolidayFlag == 0)
+                        {
+                            lookbackday = i;
+
+                            k = 0;
+
+                            for (n = 1; n < 120; n++)
+                            {
+                                ///////////////////////////
+                                // N영업일 전 LookBackDay 계산
+                                ///////////////////////////
+                                lookbackday -= 1;
+
+                                if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                                if (k == LookBackDays) break;
+                            }
+                            isinflag= isinFindIndex(lookbackday, RefHistoryDate, NRefHistory, HistDayIdx);
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = i + 1; j < ForwardEndIdx; j++)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+
+                            }
+                            Prev_PI *= 1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator;
+                            AverageRate += ForwardRate;
+
+                            NCumpound += 1;
+                        }
+                    }
+                }
+                else if (HolidayFlag == 1)
+                {
+                    for (i = ForwardStartIdx; i < 0; i++)
+                    {
+                        if (i == ForwardStartIdx) isHolidayFlag = 0;
+                        else isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                        if (isHolidayFlag == 0)
+                        {
+                            CountHoliday = 0;
+                            HoliStartIdx = 0;
+                            SatSunIdx = 0;
+
+                            for (j = i + 1; j < ForwardEndIdx; j++)
+                            {
+                                isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                                if (isHolidayFlag2 == 0) break;
+                                else
+                                {
+                                    CountHoliday += 1;
+                                }
+                            }
+
+                            if (CountHoliday == 0)
+                            {
+                                lookbackday = i;
+                            }
+                            else
+                            {
+                                lookbackday = i + CountHoliday + 1;
+                            }
+
+                            k = 0;
+                            for (n = 1; n < 120; n++)
+                            {
+                                ///////////////////////////
+                                // N영업일 전 LookBackDay 계산
+                                ///////////////////////////
+                                lookbackday -= 1;
+                                if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                                if (k == LookBackDays) break;
+                            }
+                            isinflag = isinFindIndex(lookbackday, RefHistoryDate, NRefHistory, HistDayIdx);
+                            if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                            else ForwardRate = CurrentRate;
+
+                            Prev_PI *= 1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator;
+                            AverageRate += ForwardRate;
+
+                            NCumpound += 1;
+                        }
+                    }
+                }
+            }
+            ForwardStartIdx = 0;
+        }
+    }
+    else if (UseHistorySOFR == 1 && ObservShiftFlag == 1)
+    {
+        ///////////////////////////
+        // Forward Start 날짜가 가격 계산일보다 앞에 있을 경우
+        // 또한 ObservShift가 있는 경우
+        ///////////////////////////
+        HistDayIdx = 0;
+        if (ForwardEndIdx >= 0)
+        {
+            for (i = ForwardStartIdx; i < 0; i++)
+            {
+                lookbackday = i;
+                isHolidayFlag = max(isin(i, Holiday, NHoliday), isin(i, SaturSunDay, NSaturSunDay));
+
+                if (isHolidayFlag == 0)
+                {
+                    //////////////////
+                    // Holiday가 아니라면 LookBack영업일 Back
+                    //////////////////
+
+                    k = 0;
+                    if (LookBackDays > 0)
+                    {
+                        for (n = 1; n < 120; n++)
+                        {
+                            lookbackday -= 1;
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                    }
+                    isinflag= isinFindIndex(lookbackday, RefHistoryDate, NRefHistory, HistDayIdx);
+                    if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                    else ForwardRate = Interpolate_Linear(RefCrvTerm, RefCrvRate, NRefCrvTerm, dt);
+
+                    ///////////////////////////
+                    // Observation Dt 계산
+                    ///////////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx = 0;
+                    SatSunIdx = 0;
+
+                    for (j = lookbackday + 1; j < 0; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx));
+                        if (isHolidayFlag2 == 0) break;
+                        else CountHoliday += 1;
+                    }
+
+                    if (CountHoliday == 0) Prev_PI *= 1.0 + ForwardRate * 1.0 / denominator;
+                    else Prev_PI *= 1.0 + ForwardRate * ((double)(1 + CountHoliday) / denominator);
+                    AverageRate += ForwardRate;
+
+                    NCumpound += 1;
+                }
+            }
+        }
+        ForwardStartIdx = 0;
+    }
+
+    PI_0 = Prev_PI;
+    HoliStartIdx = 0;
+    HoliStartIdx2 = 0;
+    TimePos = 0;
+    TimePos2 = 0;
+    LockOutFlag = 0;
+    NCumpound = 0;
+    SatSunIdx = 0;
+    SatSunIdx2 = 0;
+
+    if (ObservShiftFlag == 0)
+    {
+        if (HolidayFlag == 0)
+        {
+            //////////////////
+            // HolidayRate Forward Fill
+            //////////////////
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                //////////////////////////
+                // 첫 날은 영업일로 처리
+                //////////////////////////
+                if (i == ForwardStartIdx)
+                {
+                    if (UseHistorySOFR == 0) isHolidayFlag = 0;
+                    else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+                }
+                else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    lookbackday = i + 0;
+
+                    ////////////////////
+                    // Forward Rate Time 추정 LookBack 반영
+                    ////////////////////
+                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    else
+                    {
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+
+                    ////////////////////
+                    // 해당일 이후 Holiday개수 체크하여 dt설정
+                    ////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+                    for (j = i + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday += 1;
+                        }
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                    }
+                    else
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday);
+                    }
+
+                    LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                    PI_0 *= (1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator);
+                    AverageRate += ForwardRate;
+
+                    NCumpound += 1;
+                }
+            }
+        }
+        else if (HolidayFlag == 1)
+        {
+            //////////////////
+            // HolidayRate Backward Fill
+            //////////////////
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                //////////////////////////
+                // 첫 날은 영업일로 처리
+                //////////////////////////
+                if (i == ForwardStartIdx)
+                {
+                    if (UseHistorySOFR == 0) isHolidayFlag = 0;
+                    else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+                }
+                else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    ////////////////////
+                    // 해당일 이후 Holiday개수 체크하여 dt설정
+                    ////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    for (j = i + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday += 1;
+                        }
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        lookbackday = i + 0;
+                    }
+                    else
+                    {
+                        lookbackday = i + CountHoliday + 1;
+                    }
+
+                    ////////////////////
+                    // Forward Rate Time 추정 LookBack 반영
+                    ////////////////////
+                    if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                    else
+                    {
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+
+                    CountHoliday2 = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    for (j = lookbackday + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday2 += 1;
+                        }
+                    }
+
+                    if (CountHoliday2 == 0)
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                    }
+                    else
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday2);
+                    }
+
+                    LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                    PI_0 *= (1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator);
+                    AverageRate += ForwardRate;
+
+                    NCumpound += 1;
+                }
+            }
+        }
+        else if (HolidayFlag == 2)
+        {
+            //////////////////
+            // HolidayRate Interpolated Fill
+            //////////////////
+            TimePos2 = 0;
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                if (i == ForwardStartIdx)
+                {
+                    if (UseHistorySOFR == 0) isHolidayFlag = 0;
+                    else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+                }
+                else isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    lookbackday = i + 0;
+
+                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    else
+                    {
+                        ///////////////////////////
+                        // N영업일 전 LookBackDay 계산
+                        ///////////////////////////
+
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+                    ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                    TargetRate[0] = ForwardRate;
+                    TargetT[0] = 0.0;
+
+                    ////////////////////
+                    // 해당일 이후 Holiday개수 체크하여 dt설정
+                    ////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    for (j = i + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday += 1;
+                        }
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                        PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                        AverageRate += ForwardRate;
+                        NCumpound += 1;
+                    }
+                    else
+                    {
+                        ////////////////////
+                        // Holiday 이후 이자율추정
+                        ////////////////////
+                        lookbackday = i + CountHoliday + 1;
+
+                        if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                        else
+                        {
+                            k = 0;
+                            for (n = 1; n < 120; n++)
+                            {
+                                /////////////////////
+                                // N영업일 전까지 빼기
+                                /////////////////////
+                                lookbackday -= 1;
+
+                                if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                                if (k == LookBackDays) break;
+                            }
+                            t = ((double)lookbackday) / denominator;
+                        }
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos2);
+
+                        LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                        TargetRate[1] = ForwardRate;
+                        TargetT[1] = ((double)(CountHoliday + 1));
+
+                        PI_0 *= (1.0 + TargetRate[0] * 1.0 / denominator);
+                        AverageRate += TargetRate[0];
+                        NCumpound += 1;
+                        for (j = 0; j < CountHoliday; j++)
+                        {
+                            //////////////////////////////////////
+                            // Holiday동안 Linterp Rate로 Compound
+                            //////////////////////////////////////
+                            if (LockOutFlag == 0) ForwardRate = Interpolate_Linear(TargetT, TargetRate, 2, (double)(j + 1));
+                            PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                            AverageRate += ForwardRate;
+                            NCumpound += 1;
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                lookbackday = i + 0;
+
+                ////////////////////
+                // Forward Rate Time 추정 LookBack 반영
+                ////////////////////
+                if (LookBackDays < 1) t = ((double)i) / denominator;
+                else
+                {
+                    k = 0;
+                    for (n = 1; n < 120; n++)
+                    {
+                        /////////////////////
+                        // N영업일 전까지 빼기
+                        /////////////////////
+                        lookbackday -= 1;
+                        if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                        if (k == LookBackDays) break;
+                    }
+                    t = ((double)lookbackday) / denominator;
+                }
+                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                AverageRate += ForwardRate;
+                NCumpound += 1;
+            }
+        }
+    }
+    else if (ObservShiftFlag == 1)
+    {
+        if (HolidayFlag == 0)
+        {
+            //////////////////
+            // HolidayRate Forward Fill
+            //////////////////
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    lookbackday = i + 0;
+
+                    ////////////////////
+                    // Forward Rate Time 추정 LookBack 반영
+                    ////////////////////
+                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    else
+                    {
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+
+                    ////////////////////
+                    // Observe Shift Dt 추정 LookBack 반영
+                    ////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+                    for (j = lookbackday + 1; j < ForwardEndIdx; j++)
+                    {
+
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else CountHoliday += 1;
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                    }
+                    else
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday);
+                    }
+
+                    if (lookbackday < 0)
+                    {
+                        isinflag = isinFindIndex(lookbackday, RefHistoryDate, NRefHistory, HistDayIdx);
+                        if (HistDayIdx >= 0) ForwardRate = RefHistory[HistDayIdx];
+                        else ForwardRate = CurrentRate;
+                    }
+
+                    LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                    PI_0 *= (1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator);
+                    AverageRate += ForwardRate;
+
+                    NCumpound += 1;
+                }
+            }
+
+        }
+        else if (HolidayFlag == 1)
+        {
+            //////////////////
+            // HolidayRate Backward Fill
+            //////////////////
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    for (j = i + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday += 1;
+                        }
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        lookbackday = i + 0;
+                    }
+                    else
+                    {
+                        lookbackday = i + CountHoliday + 1;
+                    }
+
+                    ////////////////////
+                    // Forward Rate Time 추정 LookBack 반영
+                    ////////////////////
+                    if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                    else
+                    {
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+
+                    CountHoliday2 = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    for (j = lookbackday + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else
+                        {
+                            CountHoliday2 += 1;
+                        }
+                    }
+
+                    if (CountHoliday2 == 0)
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                    }
+                    else
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday2);
+                    }
+                    LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                    ////////////////////
+                    // Observe Shift Dt 추정 LookBack 반영
+                    ////////////////////                    
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+
+                    if (lookbackday != i)
+                    {
+                        for (j = lookbackday + 1; j < ForwardEndIdx; j++)
+                        {
+                            isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                            if (isHolidayFlag2 == 0) break;
+                            else CountHoliday += 1;
+                        }
+                    }
+
+                    PI_0 *= (1.0 + ForwardRate * (1.0 + (double)CountHoliday) / denominator);
+                    AverageRate += ForwardRate;
+
+                    NCumpound += 1;
+                }
+            }
+
+        }
+        else if (HolidayFlag == 2)
+        {
+            //////////////////
+            // HolidayRate Interpolated Fill
+            //////////////////
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                isHolidayFlag = max(isin(i, Holiday, NHoliday, HoliStartIdx), isin(i, SaturSunDay, NSaturSunDay, SatSunIdx));
+
+                if (isHolidayFlag == 0)
+                {
+                    lookbackday = i + 0;
+
+                    ////////////////////
+                    // Forward Rate Time1 추정 LookBack 반영
+                    ////////////////////
+                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    else
+                    {
+                        k = 0;
+                        for (n = 1; n < 120; n++)
+                        {
+                            /////////////////////
+                            // N영업일 전까지 빼기
+                            /////////////////////
+                            lookbackday -= 1;
+                            if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                            if (k == LookBackDays) break;
+                        }
+                        t = ((double)lookbackday) / denominator;
+                    }
+
+                    ////////////////////
+                    // Observ Shift
+                    ////////////////////
+                    CountHoliday = 0;
+                    HoliStartIdx2 = 0;
+                    SatSunIdx2 = 0;
+                    for (j = lookbackday + 1; j < ForwardEndIdx; j++)
+                    {
+                        isHolidayFlag2 = max(isin(j, Holiday, NHoliday, HoliStartIdx2), isin(j, SaturSunDay, NSaturSunDay, SatSunIdx2));
+                        if (isHolidayFlag2 == 0) break;
+                        else CountHoliday += 1;
+                    }
+
+                    if (CountHoliday == 0)
+                    {
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                        LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                        PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                        AverageRate += ForwardRate;
+
+                    }
+                    else
+                    {
+                        TargetT[0] = 0.0;
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                        LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                        TargetRate[0] = ForwardRate;
+                        PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                        AverageRate += ForwardRate;
+                        NCumpound += 1;
+
+
+                        ////////////////////
+                        // Forward Rate Time2 추정 LookBack 반영
+                        ////////////////////
+                        t = ((double)(lookbackday + CountHoliday + 1)) / denominator;
+                        TargetT[1] = (double)(CountHoliday + 1);
+                        TargetRate[1] = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                        LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                        for (j = 0; j < CountHoliday; j++)
+                        {
+                            if (LockOutFlag == 0) ForwardRate = Interpolate_Linear(TargetT, TargetRate, 2, ((double)(j + 1)));
+                            PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                            AverageRate += ForwardRate;
+                            NCumpound += 1;
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (i = ForwardStartIdx; i < ForwardEndIdx; i++)
+            {
+                lookbackday = i + 0;
+
+                ////////////////////
+                // Forward Rate Time 추정 LookBack 반영
+                ////////////////////
+                if (LookBackDays < 1) t = ((double)i) / denominator;
+                else
+                {
+                    k = 0;
+                    for (n = 1; n < 120; n++)
+                    {
+                        /////////////////////
+                        // N영업일 전까지 빼기
+                        /////////////////////
+                        lookbackday -= 1;
+                        if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
+                        if (k == LookBackDays) break;
+                    }
+                    t = ((double)lookbackday) / denominator;
+                }
+                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+
+                LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
+
+                PI_0 *= (1.0 + ForwardRate * 1.0 / denominator);
+                AverageRate += ForwardRate;
+                NCumpound += 1;
+            }
+        }
+    }
+
+    if (AverageFlag == 1)
+    {
+        AverageRate = AverageRate / (double)NCumpound;
+        PI_0 = pow(1.0 + AverageRate / denominator, (int)nday);
+    }
+
+    AnnualizedOISRate = (PI_0 - 1.0) * 1.0 / T;
+
+    return PI_0 - 1.0;
 }
 
 double Calc_Discount_Factor_Pointer(
@@ -537,7 +1702,6 @@ double HW_Rate(
     long i;
     double PtT;
     double term = 1.0 / ((double)NCPN_Ann);
-    double deltat = T - t;
     double ResultRate;
     double A, B;
     if (ReferenceType == 0) NCfSwap = 1;
@@ -558,8 +1722,8 @@ double HW_Rate(
         if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + QVTerm[0]);
         else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
-        if (deltat < 1.0) ResultRate = (1.0 - PtT) / (deltat * PtT);
-        else ResultRate = -1.0 / deltat * log(PtT);
+        if (dt[0] < 1.0) ResultRate = (1.0 - PtT) / (dt[0] * PtT);
+        else ResultRate = -1.0 / dt[0] * log(PtT);
     }
 
     return ResultRate;
@@ -754,10 +1918,26 @@ double PayoffStructure(
                     }
                 }
                 NumAccrual = min(NumAccrual, N);
-                OutputRate[i] = Rate2;
+                if (Leg_Inform->Reference_Inform[i].RefRateType == 2)
+                {
+                    if (Leg_Inform->SOFR_Annualized_R0[i] != 0.0)
+                    {
+                        OutputRate[i] = Leg_Inform->SOFR_Annualized_R0[i];
+                        Payoff += PayoffMultiple * Leg_Inform->SOFR_Compound0[i]/dt;
+                    }
+                    else
+                    {
+                        OutputRate[i] = Rate2;
+                        Payoff += PayoffMultiple * Rate2;
+                    }
+                }
+                else
+                {
+                    OutputRate[i] = Rate2;
+                    Payoff += PayoffMultiple * Rate2;
+                }
                 if (LowerBound <= CondMultiple * Rate2 && UpperBound >= CondMultiple * Rate2) Cond = Cond * 1;
                 else Cond = 0;
-                Payoff += PayoffMultiple * Rate2;
 
             }
 
@@ -965,43 +2145,36 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
                     {
                         xt = SimulShortRate[Curveidx][j];
-                        if (RcvLeg->Reference_Inform[n].RefRateType <= 2)
+                        if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
-                            if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
-                            {
-                                t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
-                                T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
-                                Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
-                            }
-                            else
-                            {
-                                t = ((double)RcvLeg->DaysForwardStart[Dayidx] / RcvLeg->Reference_Inform[n].Day1Y);
-                                T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
-                                T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
-
-                                Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
-
-                                Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
-
-                                Rate = Rate1 - Rate2;
-                            }
+                            t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
+                            T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
+                            Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
                         }
                         else
                         {
+                            t = ((double)RcvLeg->DaysForwardStart[Dayidx] / RcvLeg->Reference_Inform[n].Day1Y);
+                            T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
+                            T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
 
+                            Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+
+                            Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
+                                HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
+
+                            Rate = Rate1 - Rate2;
                         }
                         SimulatedRateRcv[n][Dayidx] = Rate;
                     }
 
                 }
             }
-            else
+            else if (Simul->DailySimulFlag == 1 && Simul->SOFRBusinessDaySimul == 0)
             {
                 for (j = 0; j < Simul->NDays; j++)
                 {
@@ -1039,6 +2212,42 @@ long Simulate_HW(
                             if (isinFindIndex(j, RcvLeg->DaysForwardEnd, RcvLeg->NCashFlow, Dayidx, &idxrcv3)) SimulatedRateRcv2[n][Dayidx] = Rate;
                         }
                     }
+                }
+            }
+            else
+            {
+                for (j = 0; j < Simul->NDays; j++)
+                {
+                    if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
+                    {
+                        xt = SimulShortRate[Curveidx][j];
+                        if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
+                        {
+                            t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
+                            T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
+                            Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+                        }
+                        else
+                        {
+                            t = ((double)RcvLeg->DaysForwardStart[Dayidx] / RcvLeg->Reference_Inform[n].Day1Y);
+                            T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
+                            T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
+
+                            Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+
+                            Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
+                                HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
+
+                            Rate = Rate1 - Rate2;
+                        }
+                        SimulatedRateRcv[n][Dayidx] = Rate;
+                    }
+
                 }
             }
         }
@@ -1188,43 +2397,36 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx, &idxpay))
                     {
                         xt = SimulShortRate[Curveidx][j];
-                        if (PayLeg->Reference_Inform[n].RefRateType <= 2)
+                        if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
-                            if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
-                            {
-                                t = ((double)PayLeg->DaysForwardStart[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
-                                T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
-                                Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
-                            }
-                            else
-                            {
-                                t = ((double)PayLeg->DaysForwardStart[Dayidx] / PayLeg->Reference_Inform[n].Day1Y);
-                                T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
-                                T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
-
-                                Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
-
-                                Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                    Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
-
-                                Rate = Rate1 - Rate2;
-                            }
+                            t = ((double)PayLeg->DaysForwardStart[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
+                            T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
+                            Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
                         }
                         else
                         {
+                            t = ((double)PayLeg->DaysForwardStart[Dayidx] / PayLeg->Reference_Inform[n].Day1Y);
+                            T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
+                            T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
 
+                            Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+
+                            Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
+                                HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
+
+                            Rate = Rate1 - Rate2;
                         }
                         SimulatedRatePay[n][Dayidx] = Rate;
                     }
 
                 }
             }
-            else
+            else if (Simul->DailySimulFlag == 1 && Simul->SOFRBusinessDaySimul == 0)
             {
                 for (j = 0; j < Simul->NDays; j++)
                 {
@@ -1262,6 +2464,42 @@ long Simulate_HW(
                             if (isinFindIndex(j, PayLeg->DaysForwardEnd, PayLeg->NCashFlow, Dayidx, &idxpay3)) SimulatedRatePay2[n][Dayidx] = Rate;
                         }
                     }
+                }
+            }
+            else
+            {
+                for (j = 0; j < Simul->NDays; j++)
+                {
+                    if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx, &idxpay))
+                    {
+                        xt = SimulShortRate[Curveidx][j];
+                        if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
+                        {
+                            t = ((double)PayLeg->DaysForwardStart[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
+                            T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
+                            Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+                        }
+                        else
+                        {
+                            t = ((double)PayLeg->DaysForwardStart[Dayidx] / PayLeg->Reference_Inform[n].Day1Y);
+                            T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
+                            T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
+
+                            Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+
+                            Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
+                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
+                                HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
+
+                            Rate = Rate1 - Rate2;
+                        }
+                        SimulatedRatePay[n][Dayidx] = Rate;
+                    }
+
                 }
             }
         }
@@ -1646,11 +2884,23 @@ long IRStructuredSwap(
 
     for (i = 0; i < RcvLeg->NReference; i++)
     {
+        if (RcvLeg->Reference_Inform[i].RefRateType == 2)
+        {
+            // SOFR면 대충 아무거나 오류 안나게 할당하게 세팅
+            RcvLeg->Reference_Inform[i].RefSwapMaturity = 0.25;
+            RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann = 4;
+        }
+
         if (RcvLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
-            if (RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0)
+            if (RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann >= 1 && RcvLeg->Reference_Inform[i].RefSwapMaturity >= 1.0)
             {
                 ndates = Number_Of_Payment(0.0, RcvLeg->Reference_Inform[i].RefSwapMaturity, 12.0 / (double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+            }
+            else if (RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann == 1 && RcvLeg->Reference_Inform[i].RefSwapMaturity < 1.0)
+            {
+                ndates = 1;
+                RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann = (long)(1.0 / RcvLeg->Reference_Inform[i].RefSwapMaturity + 0.05);
             }
             else ndates = 1;
             ndates_Rcv[i] = ndates;
@@ -1689,7 +2939,7 @@ long IRStructuredSwap(
 
         if (RcvLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
-            if (RcvLeg->Reference_Inform[i].RefRateType == 0)
+            if (RcvLeg->Reference_Inform[i].RefRateType == 0 || RcvLeg->Reference_Inform[i].RefRateType == 2)
             {
                 ncpn = 1;
                 for (j = 0; j < Simul->NDays; j++)
@@ -1729,7 +2979,8 @@ long IRStructuredSwap(
 
                     ndates = ndates_Rcv[i];
 
-                    term = 1.0 / ((double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+                    if (RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0) term = 1.0 / ((double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+                    else term = RcvLeg->Reference_Inform[i].RefSwapMaturity;
 
                     RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
@@ -1809,11 +3060,23 @@ long IRStructuredSwap(
 
     for (i = 0; i < PayLeg->NReference; i++)
     {
+        if (PayLeg->Reference_Inform[i].RefRateType == 2)
+        {
+            // SOFR면 대충 아무거나 오류 안나게 할당하게 세팅
+            PayLeg->Reference_Inform[i].RefSwapMaturity = 0.25;
+            PayLeg->Reference_Inform[i].RefSwapNCPN_Ann = 4;
+        }
+
         if (PayLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
-            if (PayLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0)
+            if (PayLeg->Reference_Inform[i].RefSwapNCPN_Ann >= 1 && PayLeg->Reference_Inform[i].RefSwapMaturity >= 1.0)
             {
                 ndates = Number_Of_Payment(0.0, PayLeg->Reference_Inform[i].RefSwapMaturity, 12.0 / (double)PayLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+            }
+            else if (PayLeg->Reference_Inform[i].RefSwapNCPN_Ann == 1 && PayLeg->Reference_Inform[i].RefSwapMaturity < 1.0)
+            {
+                ndates = 1;
+                PayLeg->Reference_Inform[i].RefSwapNCPN_Ann = (long)(1.0 / PayLeg->Reference_Inform[i].RefSwapMaturity + 0.05);
             }
             else ndates = 1;
             ndates_Pay[i] = ndates;
@@ -1850,7 +3113,7 @@ long IRStructuredSwap(
         PayRef_dt_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         if (PayLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
-            if (PayLeg->Reference_Inform[i].RefRateType == 0)
+            if (PayLeg->Reference_Inform[i].RefRateType == 0 || PayLeg->Reference_Inform[i].RefRateType == 2)
             {
                 ncpn = 1;
                 for (j = 0; j < Simul->NDays; j++)
@@ -1889,7 +3152,8 @@ long IRStructuredSwap(
                     t = ((double)(Simul->DaysForSimul[j])) / Pay_DF_Day1Y;
 
                     ndates = ndates_Pay[i];
-                    term = 1.0 / ((double)PayLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+                    if (PayLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0) term = 1.0 / ((double)PayLeg->Reference_Inform[i].RefSwapNCPN_Ann);
+                    else term = PayLeg->Reference_Inform[i].RefSwapMaturity;
 
                     PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
@@ -2005,6 +3269,30 @@ long IRStructuredSwap(
     HW_information->PayRef_B_t_T_PowerSpread = PayRef_B_t_T_PowerSpread;
     HW_information->PayRef_QVTerm_PowerSpread = PayRef_QVTerm_PowerSpread;
     HW_information->PayRef_dt_PowerSpread = PayRef_dt_PowerSpread;
+
+    ////////////////////////////
+    // SOFR 첫 번째 Cpn계산 //
+    ////////////////////////////
+    long idx;
+    double SOFRComp0_Rcv[3] = { 0.0,0.0,0.0 };
+    double SOFR_AnnOISRate0_Rcv[3] = { 0.0,0.0,0.0 };
+    double SOFRComp0_Pay[3] = { 0.0,0.0,0.0 };
+    double SOFR_AnnOISRate0_Pay[3] = { 0.0,0.0,0.0 };
+    for (i = 0; i < RcvLeg->NReference; i++)
+    {
+        idx = CurveIdx_Rcv[i];
+        if (RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx] <= 0 && RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx] > 0)
+        {
+            SOFRComp0_Rcv[i] = SOFR_ForwardRate_Compound(Simul->NRateTerm[idx], Simul->RateTerm[idx], Simul->Rate[idx], RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx], RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx],
+                0, 0, 0, RcvLeg->HolidayCalcFlag[i], RcvLeg->HolidayCount[i], RcvLeg->HolidayDays[i], RcvLeg->NWeekend[i], RcvLeg->Weekend[i], 1, RcvLeg->NDayHistory[i],
+                RcvLeg->RateHistoryDateMatrix[i], RcvLeg->RateHistoryMatrix[i], Rcv_DF_Day1Y, SOFR_AnnOISRate0_Rcv[i], 1);
+        }
+    }
+    RcvLeg->SOFR_Annualized_R0 = SOFR_AnnOISRate0_Rcv;
+    RcvLeg->SOFR_Compound0 = SOFRComp0_Rcv;
+    PayLeg->SOFR_Annualized_R0 = SOFR_AnnOISRate0_Pay;
+    PayLeg->SOFR_Compound0 = SOFRComp0_Pay;
+
 
 
     ResultCode = Simulate_HW(1, PricingDateC, NAFlag, Notional, RcvLeg, PayLeg,
@@ -2380,6 +3668,93 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         }
     }
 
+
+    //////////////////////////////
+    // 주말 처리 관련
+    //////////////////////////////
+    long SOFRUsingFlag = 0;
+    for (i = 0; i < 3; i++)
+    {
+        if (RcvRefRateType[i] >= 2 || PayRefRateType[i] >= 2)
+        {
+            SOFRUsingFlag = 1;
+            break;
+        }
+    }
+
+    long WeekCheckStart;
+    long WeekCheckEnd;
+    long NWeekend;
+
+    long* NRcv_Weekend = (long*)malloc(sizeof(long) * NRcvCashFlow);
+    long** Rcv_Weekend = (long**)malloc(sizeof(long*) * NRcvCashFlow);
+    long* NPay_Weekend = (long*)malloc(sizeof(long) * NPayCashFlow);
+    long** Pay_Weekend = (long**)malloc(sizeof(long*) * NPayCashFlow);
+
+    if (SOFRUsingFlag == 1)
+    {
+        for (i = 0; i < NRcvCashFlow; i++)
+        {
+            WeekCheckStart = RcvCashFlowScheduleExcelDate[i] - 100;
+            WeekCheckEnd = RcvCashFlowScheduleExcelDate[i + NRcvCashFlow] + 365;
+
+            NWeekend = 0;
+            for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+            {
+                if (isweekend(j) == 1)
+                {
+                    NWeekend += 1;
+                }
+            }
+            NRcv_Weekend[i] = NWeekend;
+            Rcv_Weekend[i] = (long*)malloc(sizeof(long) * max(1, NWeekend));
+            k = 0;
+            for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+            {
+                if (isweekend(j) == 1)
+                {
+                    Rcv_Weekend[i][k] = j - PriceDateExcel;
+                    k += 1;
+                }
+            }
+        }
+
+        for (i = 0; i < NPayCashFlow; i++)
+        {
+            WeekCheckStart = PayCashFlowScheduleExcelDate[i] - 100;
+            WeekCheckEnd = PayCashFlowScheduleExcelDate[i + NPayCashFlow] + 365;
+
+            NWeekend = 0;
+            for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+            {
+                if (isweekend(j) == 1)
+                {
+                    NWeekend += 1;
+                }
+            }
+            NPay_Weekend[i] = NWeekend;
+            Pay_Weekend[i] = (long*)malloc(sizeof(long) * max(1, NWeekend));
+            k = 0;
+            for (j = WeekCheckStart; j < WeekCheckEnd; j++)
+            {
+                if (isweekend(j) == 1)
+                {
+                    Pay_Weekend[i][k] = j - PriceDateExcel;
+                    k += 1;
+                }
+            }
+        }
+    }
+
+    /////////////////////////////////////////////////
+    // SOFR 하나라도 있으면 
+    // 그리고 Daily시뮬레이션이라면
+    // 주말 빼고 시뮬레이션
+    ///////////////////////////////////////////
+    long nSOFR = 0;
+    if (DailySimulFlag == 1 && SOFRUsingFlag == 1) nSOFR = 1;
+
+
     //////////////////////////////
     // 옵션 관련 Date
     //////////////////////////////
@@ -2515,6 +3890,8 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     RcvLeg->StrikeRate = OptionStrikeRate;
     RcvLeg->RangeUp = RangeUp;
     RcvLeg->RangeDn = RangeDn;
+    RcvLeg->NWeekend = NRcv_Weekend;
+    RcvLeg->Weekend = Rcv_Weekend;
 
     for (i = 0; i < NRcvCashFlow; i++)
     {
@@ -2589,6 +3966,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         PayLeg->RangeCoupon[i] = PayCouponFixRate[i + 2 * NPayCashFlow];
     }
 
+    PayLeg->NWeekend = NPay_Weekend;
+    PayLeg->Weekend = Pay_Weekend;
+
     long IdxCurrentPayLeg = 0;
     for (i = 0; i < NPayCashFlow; i++)
     {
@@ -2659,20 +4039,49 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     DaysForSimul = Make_Unique_Array((RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), AllDays, NDays);
 
     long MaxDaysSimul = 1000;
+
     if (DailySimulFlag != 0)
     {
-        MaxDaysSimul = DaysForSimul[NDays - 1];
-        free(DaysForSimul);
-        DaysForSimul = (long*)malloc(sizeof(long) * MaxDaysSimul);
-        for (i = 0; i < MaxDaysSimul; i++)
+        if (nSOFR == 0)
         {
-            DaysForSimul[i] = i;
+            MaxDaysSimul = DaysForSimul[NDays - 1];
+            free(DaysForSimul);
+            DaysForSimul = (long*)malloc(sizeof(long) * MaxDaysSimul);
+            for (i = 0; i < MaxDaysSimul; i++) DaysForSimul[i] = i;
+        }
+        else
+        {
+            n = DaysForSimul[NDays - 1];
+            k = 0;
+            for (i = 0; i < n; i++)
+            {
+                if (isweekend(PriceDateExcel + i) == 0 || isin(i, RcvLeg->DaysForwardStart, RcvLeg->NCashFlow) || isin(i, RcvLeg->DaysForwardEnd, RcvLeg->NCashFlow) || isin(i, PayLeg->DaysForwardStart, PayLeg->NCashFlow) || isin(i, PayLeg->DaysForwardEnd, PayLeg->NCashFlow))
+                {
+                    k = k + 1;
+                }
+            }
+
+            MaxDaysSimul = k;
+            free(DaysForSimul);
+            
+            DaysForSimul = (long*)malloc(sizeof(long) * MaxDaysSimul);
+            k = 0;
+            for (i = 0; i < n; i++)
+            {
+                if (isweekend(PriceDateExcel + i) == 0 || isin(i, RcvLeg->DaysForwardStart, RcvLeg->NCashFlow) || isin(i, RcvLeg->DaysForwardEnd, RcvLeg->NCashFlow) || isin(i, PayLeg->DaysForwardStart, PayLeg->NCashFlow) || isin(i, PayLeg->DaysForwardEnd, PayLeg->NCashFlow))
+                {
+                    DaysForSimul[k] = i;
+                    k = k + 1;
+                }
+            }
         }
     }
     else
     {
         MaxDaysSimul = NDays;
     }
+
+
     //////////////////////////////////
     // Random Number Generate
     //////////////////////////////////
@@ -2733,6 +4142,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     Simul->NDays = MaxDaysSimul;
     Simul->NAsset = nSimulateCurve;
     Simul->DaysForSimul = DaysForSimul;
+    Simul->SOFRBusinessDaySimul = nSOFR;
 
     Simul->dt_Array = (double*)malloc(sizeof(double) * Simul->NDays);
     Simul->T_Array = (double*)malloc(sizeof(double) * Simul->NDays);
@@ -2817,6 +4227,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         Simul_ForGreek->NDays = Simul->NDays;
         Simul_ForGreek->NAsset = Simul->NAsset;
         Simul_ForGreek->DaysForSimul = Simul->DaysForSimul;
+        Simul_ForGreek->SOFRBusinessDaySimul = nSOFR;
 
         Simul_ForGreek->dt_Array = Simul->dt_Array;
         Simul_ForGreek->T_Array = Simul->T_Array;
@@ -2944,6 +4355,16 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         free(PayHolidayDays[i]);
     }
     free(PayHolidayDays);
+    
+    if (SOFRUsingFlag == 1)
+    {
+        for (i = 0; i < NRcvCashFlow; i++) free(Rcv_Weekend[i]);
+        for (i = 0; i < NPayCashFlow; i++) free(Pay_Weekend[i]);
+    }
+    free(NRcv_Weekend);
+    free(Rcv_Weekend);
+    free(NPay_Weekend);
+    free(Pay_Weekend);
 
     free(OptionDateCtype);
     free(OptionStrikeRate);
@@ -3016,6 +4437,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     free(Simul->NRateTerm);
     free(Simul->RateTerm);
     free(Simul->Rate);
+
     delete(Simul);
     _CrtDumpMemoryLeaks();
     return 1;
