@@ -177,54 +177,54 @@ double sumation_array(long n, double* myarray)
 }
 
 typedef struct HW_Parameter {
-    long NAsset;
-    long NDays;
+    long NAsset;                            // 시뮬레이션 자산 개수
+    long NDays;                             // 시뮬레이션 Day 개수
 
-    double** XA;
-    double** XV;
+    double** XA;                            // Hull White XA Term = exp(-kappa * (T2-T1)) --> Shape : (NAsset, NDays)
+    double** XV;                            // Hull White XV Term = sqrt( integral_(t1)^(t2) exp(-2kappa(t2-t1)) sigma_t^2 dt ) --> Shape : (NAsset, NDays)
 
-    long CurveIdx_DiscRcv;
-    long CurveIdx_DiscPay;
-    long NRcv_Cf;
-    long NPay_Cf;
-    double* Rcv_DF_0_t;
-    double* Rcv_DF_0_T;
-    double* Rcv_DF_t_T;
-    double* B_t_T_RcvDisc;
-    double* QVTerm_RcvDisc;
+    long CurveIdx_DiscRcv;                  // 시뮬레이션 기준 Rcv Discount 커브 index
+    long CurveIdx_DiscPay;                  // 시뮬레이션 기준 Pay Discount 커브 index
+    long NRcv_Cf;                           // Rcv Leg Cashflow 개수
+    long NPay_Cf;                           // Pay Leg Cashflow 개수
+    double* Rcv_DF_0_t;                     // Rcv Disc P(0,t)
+    double* Rcv_DF_0_T;                     // Rcv Disc P(0,T)
+    double* Rcv_DF_t_T;                     // Rcv Disc P(t,T)
+    double* B_t_T_RcvDisc;                  // Rcv disc Hull White B(t,T) = (1-exp(-kappa(T-t))/kappa
+    double* QVTerm_RcvDisc;                 // Rcv disc Hull White QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
 
-    double* Pay_DF_0_t;
-    double* Pay_DF_0_T;
-    double* Pay_DF_t_T;
-    double* B_t_T_PayDisc;
-    double* QVTerm_PayDisc;
+    double* Pay_DF_0_t;                     // Pay Disc P(0,t)
+    double* Pay_DF_0_T;                     // Pay Disc P(0,T)
+    double* Pay_DF_t_T;                     // Pay Disc P(t,T)
+    double* B_t_T_PayDisc;                  // Pay Disc Hull White B(t,T) = (1-exp(-kappa(T-t))/kappa
+    double* QVTerm_PayDisc;                 // Pay Disc Hull White QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
 
-    long NRcvCurve;
-    long NPayCurve;
+    long NRcvCurve;                         // Rcv Leg Reference Curve 개수
+    long NPayCurve;                         // Pay Leg Reference Curve 개수
 
-    long* ndates_cpn_rcv;
-    double*** RcvRef_DF_t_T;        // Shape = NReference, NDays, NCpn
-    double*** RcvRef_B_t_T;
-    double*** RcvRef_QVTerm;
-    double*** RcvRef_dt;
+    long* ndates_cpn_rcv;                   // Rcv Reference 금리별 쿠폰개수
+    double*** RcvRef_DF_t_T;                // Rcv Ref P(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_B_t_T;                 // Rcv Ref B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_QVTerm;                // Rcv Ref QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_dt;                    // Rcv Ref DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
-    long* ndates_cpn_powerspread_rcv;
-    double*** RcvRef_DF_t_T_PowerSpread;        // Shape = NReference, NDays, NCpn
-    double*** RcvRef_B_t_T_PowerSpread;
-    double*** RcvRef_QVTerm_PowerSpread;
-    double*** RcvRef_dt_PowerSpread;
+    long* ndates_cpn_powerspread_rcv;       // Rcv Reference 반대쪽 파워스프레드 금리별 쿠폰개수
+    double*** RcvRef_DF_t_T_PowerSpread;    // Rcv Ref 반대쪽 파워스프레드 P(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_B_t_T_PowerSpread;     // Rcv Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_QVTerm_PowerSpread;    // Rcv Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_dt_PowerSpread;        // Rcv Ref 반대쪽 파워스프레드 DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
-    long* ndates_cpn_pay;
-    double*** PayRef_DF_t_T;        // Shape = NReference, NDays, NCpn
-    double*** PayRef_B_t_T;
-    double*** PayRef_QVTerm;
-    double*** PayRef_dt;
+    long* ndates_cpn_pay;                   // Pay Reference 금리별 쿠폰개수
+    double*** PayRef_DF_t_T;                // Pay Ref P(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_B_t_T;                 // Pay Ref B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_QVTerm;                // Pay Ref QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_dt;                    // Pay Ref DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
-    long* ndates_cpn_powerspread_pay;
-    double*** PayRef_DF_t_T_PowerSpread;        // Shape = NReference, NDays, NCpn
-    double*** PayRef_B_t_T_PowerSpread;
-    double*** PayRef_QVTerm_PowerSpread;
-    double*** PayRef_dt_PowerSpread;
+    long* ndates_cpn_powerspread_pay;       // Pay Reference 반대쪽 파워스프레드 금리별 쿠폰개수
+    double*** PayRef_DF_t_T_PowerSpread;    // Pay Ref 반대쪽 파워스프레드 P(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_B_t_T_PowerSpread;     // Pay Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_QVTerm_PowerSpread;    // Pay Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_dt_PowerSpread;        // Pay Ref 반대쪽 파워스프레드 DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
 } HW_INFO;
 
@@ -301,23 +301,23 @@ typedef struct LegInfo {
 
 
 typedef struct SimulationInfo {
-    long NSimul;
-    long NDays;
-    long NAsset;
-    long DailySimulFlag;
-    long* DaysForSimul;
-    double* dt_Array;
-    double* T_Array;
-    double** FixedRandn;
-    long* NHWVol;
-    double* HWKappa;
-    double** HWVolTerm;
-    double** HWVol;
-    long* NRateTerm;
-    double** RateTerm;
-    double** Rate;
-    long* SimulCurveIdx;
-    long SOFRBusinessDaySimul;
+    long NSimul;                    // 시뮬레이션 개수
+    long NDays;                     // 시뮬레이션 날짜 개수
+    long NAsset;                    // 기초자산 중복 제외하고 개수
+    long DailySimulFlag;            // DailySimul여부
+    long* DaysForSimul;             // 시뮬 날짜 Array
+    double* dt_Array;               // 시뮬레이션 Day들의 간격
+    double* T_Array;                // 시뮬레이션 Day를 T로 변환
+    double** FixedRandn;            // 고정된랜덤넘버
+    long* NHWVol;                   // HWVol 개수를 NAsset만큼 배열
+    double* HWKappa;                // HW Kappa값을 NAsset만큼 배열
+    double** HWVolTerm;             // HW Vol Term을 --> NAsset, NHWVol 만큼 배열
+    double** HWVol;                 // HW Vol을 --> NAsset, NHWVol 만큼 배열
+    long* NRateTerm;                // 기초금리 Term 개수 Array
+    double** RateTerm;              // 기초금리 Term Array --> Shape = NAsset, NRateTerm
+    double** Rate;                  // 기초금리 Array --> Shape = NAsset, NRateTerm
+    long* SimulCurveIdx;            // 시뮬레이션되는 커브 번호
+    long SOFRBusinessDaySimul;      // SOFR로 인해 BusinessDay Simul되는지 여부
 }SIMUL_INFO;
 
 // Linear Interpolation (X변수, Y변수, X길이, 타겟X)
