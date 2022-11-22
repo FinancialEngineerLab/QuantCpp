@@ -2325,13 +2325,13 @@ long Simulate_HW(
                 {
                     if (RcvLeg->DaysOptionDate[n] < Day2)
                     {
-                        Y[n][i] += Pt * PtT * RcvPayoff[j];
+                        Y[n][i] += PtT * RcvPayoff[j];
                     }
                 }
 
                 if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1)
                 {
-                    for (n = 0; n < RcvLeg->NOption; n++) Y[n][i] += Pt * PtT * Notional;
+                    for (n = 0; n < RcvLeg->NOption; n++) Y[n][i] += PtT * Notional;
                 }
             }
         }
@@ -2578,13 +2578,13 @@ long Simulate_HW(
                 {
                     if (RcvLeg->DaysOptionDate[n] < Day2)
                     {
-                        Y[n][i] -= Pt * PtT * PayPayoff[j];
+                        Y[n][i] -= PtT * PayPayoff[j];
                     }
                 }
 
                 if (j == PayLeg->NCashFlow - 1 && NAFlag == 1)
                 {
-                    for (n = 0; n < PayLeg->NOption; n++) Y[n][i] -= Pt * PtT * Notional;
+                    for (n = 0; n < PayLeg->NOption; n++) Y[n][i] -= PtT * Notional;
                 }
             }
 
@@ -2644,8 +2644,16 @@ long Simulate_HW(
     double OptionPrice = 0.0;
     double MaxLegValue;
     double ExerciseValue = 0.0;
+    double* DF_Opt = (double*)malloc(sizeof(double) * max(RcvLeg->NOption, 1));
     if (RcvLeg->OptionUseFlag == 1)
     {
+        for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++)
+        {                        
+            T_Opt = ((double)RcvLeg->DaysOptionDate[idxoption]) / 365.0;
+            if (RcvLeg->OptionType == 1) DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscRcv], Simul->Rate[HW_Information->CurveIdx_DiscRcv], Simul->NRateTerm[HW_Information->CurveIdx_DiscRcv], T_Opt);
+            else DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscPay], Simul->Rate[HW_Information->CurveIdx_DiscPay], Simul->NRateTerm[HW_Information->CurveIdx_DiscPay], T_Opt);
+        }
+
         Beta = OLSBeta(Value_By_OptTime, LengthY, InterestRate_Opt, ShapeX);
         for (i = 0; i < Simul->NSimul; i++)
         {
@@ -2662,7 +2670,7 @@ long Simulate_HW(
                 {
                     if (Y[idxoption][i] < 0.0 && -Y[idxoption][i] > EstOptValue)
                     {
-                        OptionPrice += -Y[idxoption][i] / (double)Simul->NSimul;
+                        OptionPrice += -(Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
                         break;
                     }
                 }
@@ -2670,7 +2678,7 @@ long Simulate_HW(
                 {
                     if (Y[idxoption][i] > 0.0 && Y[idxoption][i] > EstOptValue)
                     {
-                        OptionPrice += Y[idxoption][i] / (double)Simul->NSimul;
+                        OptionPrice += (Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
                         break;
                     }
                 }
@@ -2745,6 +2753,7 @@ long Simulate_HW(
         free(Y_Hat);
 
     }
+    free(DF_Opt);
     return 1;
 }
 
